@@ -1,21 +1,45 @@
 # Implementation of
 # https://musicbrainz.org/doc/Development/Seeding/Release_Editor
+from typing import Iterable
+from typing import MutableMapping
+import dataclasses
 from dataclasses import dataclass
 
+def mb_dict_factory(data: MutableMapping, parent_key: str = '', sep: str = '.'):
+    items = []
+    for key, value in data.items():
+        flat_key = f"{parent_key}{sep}{key}" if parent_key else key
+        if isinstance(value, dict):
+            items.extend(mb_dict_factory(value, flat_key))
+        if isinstance(value, str):
+            items.append((flat_key, value))
+        if isinstance(value, list):
+            if isinstance(value[0], MutableMapping):
+                for idx, iterable_value in enumerate(value):
+                    idx_key = f"{flat_key}{sep}{idx}"
+                    items.extend(mb_dict_factory(iterable_value, parent_key=idx_key))
+    return dict(items)
 
 @dataclass
-class MBArtistName:
-    name: str
+class MBBase:
+    def post(self) -> dict[str, int | str]:
+        return mb_dict_factory(dataclasses.asdict(self))
+
+
 
 @dataclass
-class MBName:
-    mbid: str
-    name: str
-    artist: MBArtistName
-    join_phrase: str
+class MBArtistName(MBBase):
+    name: str | None = None
 
 @dataclass
-class MBArtistCredit:
+class MBName(MBBase):
+    mbid: str | None = None
+    name: str | None = None
+    artist: MBArtistName | None = None
+    join_phrase: str | None = None
+
+@dataclass
+class MBArtistCredit(MBBase):
     names: list[MBName]
 
 @dataclass

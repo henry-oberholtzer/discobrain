@@ -30,6 +30,8 @@ dev = [
 iso_free = "isocodes locales --keep en --yes"
 type = "pyrefly check"
 lint = "ruff check --fix"
+test = "pytest"
+validate = ["type", "lint", "test"]
 
 [tool.pyrefly]
 project-includes = [
