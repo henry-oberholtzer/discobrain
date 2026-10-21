@@ -1,31 +1,34 @@
 # Implementation of
 # https://musicbrainz.org/doc/Development/Seeding/Release_Editor
-from typing import Iterable
-from typing import MutableMapping
+
 import dataclasses
+from collections.abc import MutableMapping
 from dataclasses import dataclass
 
+
 def mb_dict_factory(data: MutableMapping, parent_key: str = '', sep: str = '.'):
-    items = []
+    items: list[tuple[str, int | str]] = []
     for key, value in data.items():
         flat_key = f"{parent_key}{sep}{key}" if parent_key else key
-        if isinstance(value, dict):
-            items.extend(mb_dict_factory(value, flat_key))
-        if isinstance(value, str):
+        if isinstance(value, MutableMapping):
+            items.extend(mb_dict_factory(data=value, parent_key=flat_key).items())
+        if isinstance(value, (str, int)):
             items.append((flat_key, value))
         if isinstance(value, list):
             if isinstance(value[0], MutableMapping):
                 for idx, iterable_value in enumerate(value):
                     idx_key = f"{flat_key}{sep}{idx}"
-                    items.extend(mb_dict_factory(iterable_value, parent_key=idx_key))
+                    items.extend(mb_dict_factory(iterable_value, parent_key=idx_key).items())
+            else:
+                for idx, iterable_value in enumerate(value):
+                    idx_key = f"{flat_key}{sep}{idx}"
+                    items.append((idx_key, iterable_value))
     return dict(items)
 
 @dataclass
 class MBBase:
-    def post(self) -> dict[str, int | str]:
+    def flatten(self) -> dict[str, int | str]:
         return mb_dict_factory(dataclasses.asdict(self))
-
-
 
 @dataclass
 class MBArtistName(MBBase):
@@ -43,45 +46,45 @@ class MBArtistCredit(MBBase):
     names: list[MBName]
 
 @dataclass
-class MBTrack:
-    name: str
-    number: str
+class MBTrack(MBBase):
+    name: str | None = None
+    number: str | None = None
     # MBID
-    recording: str
-    length: int
-    artist_credit: list[MBArtistCredit]
+    recording: str | None = None
+    length: int | None = None
+    artist_credit: MBArtistCredit | None = None
 
 @dataclass
-class MBMedium:
-    format: str
-    name: str
-    track: list[MBTrack]
+class MBMedium(MBBase):
+    format: str | None = None
+    name: str | None = None
+    track: list[MBTrack] | None = None
 
 @dataclass
-class MBLabel:
+class MBLabel(MBBase):
     mbid: str
     catalog_number: str
     name: str
 
 @dataclass
-class MBDate:
-    year: int
-    month: int
-    day: int
+class MBDate(MBBase):
+    year: int | None = None
+    month: int | None = None
+    day: int | None = None
 
 @dataclass
-class MBEvent:
-    date: MBDate
+class MBEvent(MBBase):
+    date: MBDate | None = None
     # any ISO code
-    country: str
+    country: str | None = None
 
 @dataclass
-class MBURL:
-    url: str
-    link_type: int
+class MBURL(MBBase):
+    url: str | None = None
+    link_type: int | None = None
 
 @dataclass
-class MBRelease:
+class MBRelease(MBBase):
     """
     Takes a given data source URL on init,
     then fetches and converts it to a relevant MusicBrainz
@@ -93,7 +96,7 @@ class MBRelease:
     # non optional
     name: str
     # URL for getting source data
-    urls: list[MBURL]
+    urls: list[MBURL] | None = None
     # can be pre-existing MBID release group
     release_group: str | None = None
     # type of release group
@@ -118,13 +121,7 @@ class MBRelease:
 
     labels: list[MBLabel] | None = None
 
-    artist_credit: list[MBArtistCredit] | None = None
+    artist_credit: MBArtistCredit | None = None
 
     mediums: list[MBMedium] | None = None
-
-
-    def post(self) -> object:
-        """
-        Converts the object into a relevant object for MB
-        """
 
