@@ -66,34 +66,38 @@ class MBRelease:
     It will titlecase, determine language and script (vaguely)
     and 
     """
+    # non optional
     name: str
+    # URL for getting source data
+    urls: list[MBURL]
     # can be pre-existing MBID release group
-    release_group: str
+    release_group: str | None = None
     # type of release group
-    type: str
+    type: str | None = None
     # disambiguation comment, use for White Label, etc
-    comment: str
+    comment: str | None = None
     # annotation, use for multi-line text, e.g. other info on discogs
-    annotation: str
-    barcode: str
+    annotation: str | None = None
+    barcode: str | None = None
     # ISO-639-3 code
-    language: str
+    language: str | None = None
     # ISO 15924 code
-    script: str
+    script: str | None = None
     # status {official, promotion, bootleg, pseudo-release}
-    packaging: str
+    packaging: str | None = None
     # Multi line text describing edits made
-    edit_note: str
+    edit_note: str | None = None
     # Redirect
-    redirect_uri: str
+    redirect_uri: str | None = None
 
-    events: list[MBEvent]
+    events: list[MBEvent] | None = None
 
-    labels: list[MBLabel]
+    labels: list[MBLabel] | None = None
 
-    artist_credit: list[MBArtistCredit]
+    artist_credit: list[MBArtistCredit] | None = None
 
-    mediums: list[MBMedium]
+    mediums: list[MBMedium] | None = None
+
 
     def post(self) -> object:
         """
