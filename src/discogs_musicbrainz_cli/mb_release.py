@@ -1,12 +1,14 @@
 # Implementation of
 # https://musicbrainz.org/doc/Development/Seeding/Release_Editor
-
 import dataclasses
+import re
 from collections.abc import MutableMapping
 from dataclasses import dataclass
 from typing import ClassVar
 
 from isocodes import countries
+
+LOWERCASE_WORDS = ["the", "da", "of", "for", "an?", "in", "to", "remix", "original mix", "mix", "dub mix", "remix", "edit", "re-edit", "presents", "feat.?"]
 
 
 def mb_dict_factory(data: MutableMapping, parent_key: str = '', sep: str = '.'):
@@ -29,7 +31,14 @@ def mb_dict_factory(data: MutableMapping, parent_key: str = '', sep: str = '.'):
     return dict(items)
 
 def mb_title_case(text: str) -> str:
-    return text.replace(" The ", " the ")
+    def lowercase(matchobj) -> str:
+        return matchobj.group(0).lower()
+    if text.isupper() or text.isnumeric() or text.islower():
+        return text
+    for word in LOWERCASE_WORDS:
+        regex = rf'(?<=[\w\d\s,][\s\(]){word}(?=[\s,\)])'
+        text = re.sub(regex, lowercase, text, flags=re.IGNORECASE)
+    return text
 
 @dataclass
 class MBBase:
@@ -48,7 +57,7 @@ class MBBase:
                 return super().__setattr__(prop, mb_title_case(val))
             # Normalize country names to ISO names
             elif prop in self.COUNTRY_FIELDS:
-                result = countries.by_name_dict[val]
+                result = countries.by_name_dict.get(val)
                 if result:
                     return super().__setattr__(prop, result.alpha_2)
         super().__setattr__(prop, val)

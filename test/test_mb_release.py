@@ -1,3 +1,5 @@
+import pytest
+
 from discogs_musicbrainz_cli.mb_release import (
     MBURL,
     MBArtistCredit,
@@ -9,6 +11,7 @@ from discogs_musicbrainz_cli.mb_release import (
     MBName,
     MBRelease,
     MBTrack,
+    mb_title_case,
 )
 
 
@@ -114,5 +117,30 @@ def test_release_flatten():
     assert release["mediums.0.track.0.artist_credit.names.1.name"] == "name_two"
     assert release["mediums.1.format"] == "CD"
 
+def test_country_known():
+    event = MBEvent(country="United States")
+    assert event.country == "US"
 
+def test_country_unknown():
+    event = MBEvent(country="UNKNOWN")
+    assert event.country == "UNKNOWN"
+
+@pytest.mark.parametrize("text,expected", [
+    ("Spirit Of Adventure", "Spirit of Adventure"),
+    ("Artist Feat. Artist", "Artist feat. Artist"),
+    ("Artist featuring Artist", "Artist featuring Artist"),
+    ("Artist Presents Artist", "Artist presents Artist"),
+    ("The Artist", "The Artist"),
+    ("The Anthem (Original Mix)", "The Anthem (original mix)"),
+    ("The Anthem (Kemal Remix)", "The Anthem (Kemal remix)"),
+    ("Born To Be Slytherin", "Born to Be Slytherin"),
+    ("A Special Person", "A Special Person"),
+    ("The Work Of Art In The Age Of Cultural Overproduction", "The Work of Art in the Age of Cultural Overproduction"),
+    ("Something Else... The Bleeps Tune", "Something Else... The Bleeps Tune"),
+    ("ALL IN UPPERCASE", "ALL IN UPPERCASE"),
+    ("a title in lowercase", "a title in lowercase"),
+    ("2 For Da Time", "2 for da Time"),
+])
+def test_titlecase(text: str, expected: str):
+    assert mb_title_case(text) == expected
 
