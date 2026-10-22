@@ -9,6 +9,7 @@ authors = [
 requires-python = ">=3.12"
 dependencies = [
     "isocodes>=2026.9.2",
+    "python3-discogs-client>=2.10",
 ]
 
 [project.scripts]

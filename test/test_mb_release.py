@@ -34,7 +34,7 @@ def test_flatten_list():
     assert names["names.1.name"] == "name_two"
 
 def test_release_flatten():
-    name = "Release Name"
+    name = "It's The Release Name"
     release_group = "123"
     url = "https://example.com"
     comment = "a comment"
@@ -60,7 +60,7 @@ def test_release_flatten():
         language="English",
         script="Latin",
         packaging=packaging,
-        events=[MBEvent(date=MBDate(year=1998, month=12, day=31), country="NL")],
+        events=[MBEvent(date=MBDate(year=1998, month=12, day=31), country="Netherlands")],
         labels=[MBLabel(mbid="abcd", catalog_number="TEST 123", name="LABEL NAME")],
         artist_credit=artist_credit,
         mediums=[
@@ -78,7 +78,7 @@ def test_release_flatten():
             ),
             MBMedium(format="CD")]
     ).flatten()
-    assert release["name"] == name
+    assert release["name"] == "It's the Release Name"
     assert release["type"] == "album"
     assert release["release_group"] == release_group
     assert release["urls.0.url"] == url

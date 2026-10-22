@@ -4,6 +4,9 @@
 import dataclasses
 from collections.abc import MutableMapping
 from dataclasses import dataclass
+from typing import ClassVar
+
+from isocodes import countries
 
 
 def mb_dict_factory(data: MutableMapping, parent_key: str = '', sep: str = '.'):
@@ -25,10 +28,31 @@ def mb_dict_factory(data: MutableMapping, parent_key: str = '', sep: str = '.'):
                     items.append((idx_key, iterable_value))
     return dict(items)
 
+def mb_title_case(text: str) -> str:
+    return text.replace(" The ", " the ")
+
 @dataclass
 class MBBase:
+    TITLE_FIELDS: ClassVar[list[str]] = ["name"]
+    COUNTRY_FIELDS: ClassVar[list[str]] = ["country"]
+
     def flatten(self) -> dict[str, int | str]:
         return mb_dict_factory(dataclasses.asdict(self))
+
+    def __setattr__(self, prop: str, val: str | int):
+        """
+        Manages necessary transformations to make this into "Good" MusicBrainz data.
+        """
+        if isinstance(val, str):
+            if prop in self.TITLE_FIELDS:
+                return super().__setattr__(prop, mb_title_case(val))
+            # Normalize country names to ISO names
+            elif prop in self.COUNTRY_FIELDS:
+                result = countries.by_name_dict[val]
+                if result:
+                    return super().__setattr__(prop, result.alpha_2)
+        super().__setattr__(prop, val)
+
 
 @dataclass
 class MBArtistName(MBBase):
@@ -89,9 +113,6 @@ class MBRelease(MBBase):
     Takes a given data source URL on init,
     then fetches and converts it to a relevant MusicBrainz
     new release format.
-
-    It will titlecase, determine language and script (vaguely)
-    and 
     """
     # non optional
     name: str
@@ -124,4 +145,5 @@ class MBRelease(MBBase):
     artist_credit: MBArtistCredit | None = None
 
     mediums: list[MBMedium] | None = None
+
 
