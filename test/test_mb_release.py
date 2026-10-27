@@ -1,6 +1,6 @@
 import pytest
 
-from discogs_musicbrainz_cli.mb_release import (
+from discobrain.mb_release import (
     MBURL,
     MBArtistCredit,
     MBArtistName,

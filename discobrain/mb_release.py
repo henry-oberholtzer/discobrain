@@ -12,7 +12,7 @@ LOWERCASE_WORDS = ["the", "da", "of", "for", "an?", "in", "to", "remix", "origin
 
 
 def mb_dict_factory(data: MutableMapping, parent_key: str = '', sep: str = '.'):
-    items: list[tuple[str, int | str]] = []
+    items: list[tuple[str, str | int]] = []
     for key, value in data.items():
         flat_key = f"{parent_key}{sep}{key}" if parent_key else key
         if isinstance(value, MutableMapping):
