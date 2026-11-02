@@ -83,4 +83,13 @@ def test_discogs(monkeypatch: MonkeyPatch):
     assert release.comment == ""
     assert release.language == "eng"
     assert release.script == "Latn"
+    # release.annotation
+    # release.status
+    # release.packaging
+    # release.edit_note
+    # release.redirect_uri
+    # release.events
+    # release.labels
+    # release.artist_credit
+    # release.mediums
 

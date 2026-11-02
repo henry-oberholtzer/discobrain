@@ -7,11 +7,10 @@ from dataclasses import dataclass
 from enum import StrEnum
 from typing import ClassVar
 
-from discobrain.utils import most_common_script
-
-import unicode_blocks
 from guess_language import guess_language
 from isocodes import countries, extended_languages
+
+from discobrain.utils import most_common_script
 
 LOWERCASE_WORDS = ["the", "da", "of", "for", "an?", "in", "to", "remix", "original mix", "mix", "dub mix", "remix", "edit", "re-edit", "presents", "feat.?"]
 class MBReleaseType(StrEnum):
@@ -151,7 +150,7 @@ class MBRelease(MBBase):
     annotation: str | None = None
     barcode: str | None = None
     # ISO 15924 code
-    script: str | None = None
+    #script: str | None = None
     # status {official, promotion, bootleg, pseudo-release}
     status: str | None = None
     packaging: str | None = None

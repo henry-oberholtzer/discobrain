@@ -60,7 +60,6 @@ def test_release_flatten():
         comment=comment,
         annotation=comment,
         barcode=barcode,
-        script="Latin",
         packaging=packaging,
         events=[MBEvent(date=MBDate(year=1998, month=12, day=31), country="Netherlands")],
         labels=[MBLabel(mbid="abcd", catalog_number="TEST 123", name="LABEL NAME")],

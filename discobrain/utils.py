@@ -1,7 +1,5 @@
-from isocodes import ISONamespaceRecord
 import unicode_blocks
-
-from isocodes import script_names
+from isocodes import ISONamespaceRecord, script_names
 
 
 def most_common_script(text: str) -> str:

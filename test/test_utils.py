@@ -2,6 +2,7 @@ import pytest
 
 from discobrain.utils import most_common_script
 
+
 @pytest.mark.parametrize("text,script", [(
     "This is a sentence in a latin script",
     "Latn"
