@@ -1,17 +1,23 @@
+import os
+
 from dotenv import load_dotenv
 from flask import Flask
 
+from . import auth
 from .mb_release import MBRelease
 
-USER_AGENT = "DiscogsToMB/0.0.1 ( henryoberholtzer@gmail.com )"
+USER_AGENT = "Discobrain/0.0.1 henryoberholtzer@gmail.com"
 
 load_dotenv()
 
 app = Flask(__name__)
+app.secret_key = os.getenv("DISCOBRAIN_SECRET_KEY")
+app.register_blueprint(auth.bp)
 
 @app.route("/")
 def index():
-    return "Hello!"
+    return "Hello"
+
 
 @app.route("/submit")
 def form():

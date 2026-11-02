@@ -1,0 +1,10 @@
+<!doctype html>
+<title>{% block title %}{% endblock %} - Discobrain</title>
+<nav>
+  <h1>Discobrain</h1>
+  <ul>
+    {% if g.user %}
+    <li><span>{{ g.user['username'] }}</span>
+    <li><a href="{{ url_for('auth.logout')}}">Revoke Token</a>
+    {}
+

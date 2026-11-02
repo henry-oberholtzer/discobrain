@@ -4,12 +4,19 @@ import dataclasses
 import re
 from collections.abc import MutableMapping
 from dataclasses import dataclass
+from enum import StrEnum
 from typing import ClassVar
 
 from isocodes import countries
 
 LOWERCASE_WORDS = ["the", "da", "of", "for", "an?", "in", "to", "remix", "original mix", "mix", "dub mix", "remix", "edit", "re-edit", "presents", "feat.?"]
-
+class MBReleaseType(StrEnum):
+    ALBUM = "Album"
+    SINGLE = "Single"
+    EP = "EP"
+    BROADCAST = "Broadcast"
+    OTHER = "Other"
+    NONE = ""
 
 def mb_dict_factory(data: MutableMapping, parent_key: str = '', sep: str = '.'):
     items: list[tuple[str, str | int]] = []
@@ -44,6 +51,7 @@ def mb_title_case(text: str) -> str:
 class MBBase:
     TITLE_FIELDS: ClassVar[list[str]] = ["name"]
     COUNTRY_FIELDS: ClassVar[list[str]] = ["country"]
+    BARCODE_FIELDS: ClassVar[list[str]] = ["barcode"]
 
     def flatten(self) -> dict[str, int | str]:
         return mb_dict_factory(dataclasses.asdict(self))
@@ -60,6 +68,8 @@ class MBBase:
                 result = countries.by_name_dict.get(val)
                 if result:
                     return super().__setattr__(prop, result.alpha_2)
+            elif prop in self.BARCODE_FIELDS:
+                return super().__setattr__(prop, re.sub(r"\D", '', val))
         super().__setattr__(prop, val)
 
 
@@ -124,7 +134,7 @@ class MBRelease(MBBase):
     new release format.
     """
     # non optional
-    name: str
+    name: str | None = None
     # URL for getting source data
     urls: list[MBURL] | None = None
     # can be pre-existing MBID release group
@@ -154,5 +164,4 @@ class MBRelease(MBBase):
     artist_credit: MBArtistCredit | None = None
 
     mediums: list[MBMedium] | None = None
-
 
