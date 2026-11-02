@@ -7,7 +7,11 @@ from dataclasses import dataclass
 from enum import StrEnum
 from typing import ClassVar
 
-from isocodes import countries
+from discobrain.utils import most_common_script
+
+import unicode_blocks
+from guess_language import guess_language
+from isocodes import countries, extended_languages
 
 LOWERCASE_WORDS = ["the", "da", "of", "for", "an?", "in", "to", "remix", "original mix", "mix", "dub mix", "remix", "edit", "re-edit", "presents", "feat.?"]
 class MBReleaseType(StrEnum):
@@ -146,11 +150,10 @@ class MBRelease(MBBase):
     # annotation, use for multi-line text, e.g. other info on discogs
     annotation: str | None = None
     barcode: str | None = None
-    # ISO-639-3 code
-    language: str | None = None
     # ISO 15924 code
     script: str | None = None
     # status {official, promotion, bootleg, pseudo-release}
+    status: str | None = None
     packaging: str | None = None
     # Multi line text describing edits made
     edit_note: str | None = None
@@ -164,4 +167,34 @@ class MBRelease(MBBase):
     artist_credit: MBArtistCredit | None = None
 
     mediums: list[MBMedium] | None = None
+
+    def _text_sample(self) -> str:
+    # ISO-639-3 code
+        def get_track_titles(mediums: list[MBMedium] | None) -> list[str]:
+            titles = []
+            if mediums:
+                for m in mediums:
+                    if m.track:
+                        for t in m.track:
+                            if t.name:
+                                titles.append(t.name)
+            return titles
+
+        titles = get_track_titles(self.mediums)
+        sample = f"{self.name} {' '.join(titles)}"
+        return sample
+
+    @property
+    def language(self) -> str:
+        sample = self._text_sample()
+        if len(sample) > 20:
+            guess = guess_language(sample)
+            if isinstance(guess, str):
+                return extended_languages.get(alpha_2=guess)['alpha_3']
+        return ""
+
+    @property
+    def script(self) -> str:
+        return most_common_script(self._text_sample())
+
 

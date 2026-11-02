@@ -5,9 +5,14 @@ from typing import cast
 import pytest
 from pytest import MonkeyPatch
 
-from discobrain.discogs_release import DiscogsRelease
+from discobrain.discogs_release import DiscogsFormat, DiscogsRelease
 from discobrain.mb_release import MBReleaseType
-from discobrain.release_converter import ReleaseConverter, type_from_title
+from discobrain.release_converter import (
+    ReleaseConverter,
+    release_disambiguation,
+    type_from_title,
+    type_from_tracks,
+)
 
 FILE_PATH = Path(__file__).absolute()
 
@@ -38,6 +43,33 @@ def test_discogs_e2e():
 def test_from_title(given: str, expected: str):
     assert type_from_title(given) == expected
 
+@pytest.mark.parametrize("tracks,expected", [
+    (1, MBReleaseType.SINGLE),
+    (2, MBReleaseType.SINGLE),
+    (3, MBReleaseType.SINGLE),
+    (4, MBReleaseType.EP),
+    (5, MBReleaseType.EP),
+    (6, MBReleaseType.EP),
+    (7, MBReleaseType.ALBUM),
+    (8, MBReleaseType.ALBUM)
+    ])
+def test_from_tracks(tracks: int, expected: str):
+    assert type_from_tracks(tracks) == expected
+
+@pytest.mark.parametrize("given,expected", [
+    (
+        [{
+            "name": "Vinyl",
+            "quantity": "1",
+            "descriptions": [ '12"', "33 1/3 RPM", "45 RPM", "EP", "Limited Edition", "Repress"],
+            "text": "Orange"
+            }],
+        "orange, repress"
+        )
+    ])
+def test_release_disambiguation(given: list[DiscogsFormat], expected: str):
+    assert release_disambiguation(given) == expected
+
 def test_discogs(monkeypatch: MonkeyPatch):
     monkeypatch.setattr(ReleaseConverter, "_discogs_release_endpoint", load_json)
     release = ReleaseConverter().discogs(13954)
@@ -48,4 +80,7 @@ def test_discogs(monkeypatch: MonkeyPatch):
     assert release.urls[0].link_type == 76
     assert release.barcode == "5033826056260"
     assert release.type == MBReleaseType.ALBUM
+    assert release.comment == ""
+    assert release.language == "eng"
+    assert release.script == "Latn"
 

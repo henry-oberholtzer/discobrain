@@ -19,6 +19,8 @@ SINGLE = ["Single", "Maxi-Single"]
 
 EP = ["EP"]
 
+DISAMBIGUATORS = ["White Label", "Repress", "Remastered", "Misprint"]
+
 def barcode(d: DiscogsRelease) -> str:
     """
     Extract and normalize barcode
@@ -65,8 +67,12 @@ def type_from_title(title: str) -> MBReleaseType:
         return MBReleaseType.ALBUM
     return MBReleaseType.NONE
 
-def type_from_tracks() -> MBReleaseType:
-    return MBReleaseType.NONE
+def type_from_tracks(num_tracks) -> MBReleaseType:
+    if num_tracks < 4:
+        return MBReleaseType.SINGLE
+    elif num_tracks < 7:
+        return MBReleaseType.EP
+    return MBReleaseType.ALBUM
 
 def release_type(d: DiscogsRelease) -> str:
     # 1. From given information (most reliable)
@@ -74,19 +80,17 @@ def release_type(d: DiscogsRelease) -> str:
     # 2. From title (artist intent)
     if not release_type:
         release_type = type_from_title(d['title'])
-
-    # 3. From tracks
-    # if one track
-
-
-    # Single
-
-    # EP
-
-    # Broadcast
-
-    # Other
+    # 3. From track count
+    if not release_type:
+        release_type = type_from_tracks(d['tracklist'])
     return release_type
+
+def release_disambiguation(formats: list[DiscogsFormat]) -> str:
+    descs = format_descs(formats)
+    free_text = [f.get('text') for f in formats if f.get('text') is not None]
+    disambiguators = descs.intersection(set(DISAMBIGUATORS))
+    return f"{', '.join([*free_text, *disambiguators])}".lower()
+
 
 class ReleaseConverter:
 
@@ -111,6 +115,7 @@ class ReleaseConverter:
         mb.barcode = barcode(d)
         mb.urls = [discogs_url(d)]
         mb.type = release_type(d)
+        mb.comment = release_disambiguation(d['formats'])
         # fetch the release from discogs
         return mb
 

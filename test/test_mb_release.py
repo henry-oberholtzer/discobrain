@@ -60,7 +60,6 @@ def test_release_flatten():
         comment=comment,
         annotation=comment,
         barcode=barcode,
-        language="English",
         script="Latin",
         packaging=packaging,
         events=[MBEvent(date=MBDate(year=1998, month=12, day=31), country="Netherlands")],

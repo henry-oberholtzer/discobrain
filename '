@@ -1,0 +1,27 @@
+import unicode_blocks
+
+from isocodes import script_names
+
+
+def most_common_script(text: str) -> str:
+    """
+    Takes in an input string, returns the most common
+    unicode script in ISO code format.
+    """
+    blocks: dict[str, int] = {}
+    for c in text:
+        block = unicode_blocks.of(c).name
+        if blocks.get(block):
+            blocks[block] += 1
+        else:
+            blocks[block] = 1
+    most_common = max(blocks, key=lambda x: blocks[x])
+    print(blocks)
+    if "Latin" in most_common:
+        return "Latn"
+    results = script_names.find(name=max(blocks).split(" ")[0])
+    if results:
+        return results.get("alpha_4")
+    return ""
+    # remove all puncatuation and space from the sample
+    # iterate through, building a guess of the script

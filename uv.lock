@@ -1,5 +1,5 @@
 version = 1
-revision = 3
+revision = 5
 requires-python = ">=3.12"
 
 [[package]]
@@ -176,12 +176,14 @@ source = { virtual = "." }
 dependencies = [
     { name = "flask" },
     { name = "flask-dance" },
+    { name = "guess-language-spirit" },
     { name = "isocodes" },
     { name = "pytest" },
     { name = "python-dotenv" },
     { name = "python3-discogs-client" },
     { name = "requests" },
     { name = "requests-ratelimiter" },
+    { name = "unicode-blocks-py" },
 ]
 
 [package.dev-dependencies]
@@ -196,12 +198,14 @@ dev = [
 requires-dist = [
     { name = "flask", specifier = ">=3.1.3" },
     { name = "flask-dance", specifier = ">=7.1.0" },
+    { name = "guess-language-spirit", specifier = ">=0.5.4" },
     { name = "isocodes", specifier = ">=2026.9.2" },
     { name = "pytest", specifier = ">=9.1.1" },
     { name = "python-dotenv", specifier = ">=1.2.4" },
     { name = "python3-discogs-client", specifier = ">=2.10" },
     { name = "requests", specifier = ">=2.34.2" },
     { name = "requests-ratelimiter", specifier = ">=0.10.0" },
+    { name = "unicode-blocks-py", specifier = ">=18.0.0" },
 ]
 
 [package.metadata.requires-dev]
@@ -244,6 +248,15 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/d7/b3/38aff96fbafe850f7f4186dc06e96ebc29625d68d1427ad65c9d41c4ec9e/flask_dance-7.1.0.tar.gz", hash = "sha256:6d0510e284f3d6ff05af918849791b17ef93a008628ec33f3a80578a44b51674", size = 140993, upload-time = "2024-03-05T12:43:21.558Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/75/8c/4125e9f1196e5ab9675d38ff445ae4abd7085aba7551335980ac19196389/flask_dance-7.1.0-py3-none-any.whl", hash = "sha256:81599328a2b3604fd4332b3d41a901cf36980c2067e5e38c44ce3b85c4e1ae9c", size = 62176, upload-time = "2024-03-05T12:43:19.149Z" },
+]
+
+[[package]]
+name = "guess-language-spirit"
+version = "0.5.4"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/d4/3d/efef9e756ca7ddc10bf2d352cd0924a669d4a4d7cb22005e887d4be0c346/guess_language_spirit-0.5.4.tar.gz", hash = "sha256:536e0f17b2a19da861481a72ebb28a775dfa329fe70f7b76a8dee5cd3201c702", size = 122805, upload-time = "2026-06-08T23:08:20.6Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/91/01/53abc7a2968e5052dad0e20dd9c03da3588350a00d2e756aec17dd07fe13/guess_language_spirit-0.5.4-py3-none-any.whl", hash = "sha256:927efa53a75e2c3bcd6229ed17760f3a785576d72c6b6d59db37292953f9d104", size = 138104, upload-time = "2026-06-08T23:08:18.855Z" },
 ]
 
 [[package]]
@@ -663,6 +676,15 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/d9/68/f1b440335057bfce71b6e50a9d09445aa2ecbd08359a337976627b8409e7/tzdata-2026.5.tar.gz", hash = "sha256:8cc73c0a0bfca7dbfa59235d60b2eff82231dee33f53d206db1acd9173cfc0a7", size = 200404, upload-time = "2026-10-03T09:23:14.143Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/94/21/1e5995a1c920cce14e4bffae20c665ec10e7ed03ab25e006cd741092b718/tzdata-2026.5-py2.py3-none-any.whl", hash = "sha256:b683bd1b6659ddcd810ff02ad09ba821d4bf1065072805063eb35c49617905ac", size = 347996, upload-time = "2026-10-03T09:23:12.535Z" },
+]
+
+[[package]]
+name = "unicode-blocks-py"
+version = "18.0.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/a3/96/905bb2d14fc93ad2896661c6921acb6de4f7abedcbdda764abac871293e4/unicode_blocks_py-18.0.0.tar.gz", hash = "sha256:47002accab77fb2178a7582aedbbaf19e27c95871339a5abe5d62c52a7d9c4e0", size = 29836, upload-time = "2026-10-01T16:54:44.033Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/9c/3a/bde903331eda53b157fca136ff146e6c9e5d562c86f7210684545cdce399/unicode_blocks_py-18.0.0-py3-none-any.whl", hash = "sha256:552dbebb7d2e4752bf049114c8d65e50a3505faa8ecf3891b1ff40a56f81774e", size = 25433, upload-time = "2026-10-01T16:54:42.721Z" },
 ]
 
 [[package]]

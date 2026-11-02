@@ -1,4 +1,4 @@
-from typing import TypedDict
+from typing import NotRequired, TypedDict
 
 
 class DiscogsReleaseArtist(TypedDict):
@@ -48,6 +48,7 @@ class DiscogsFormat(TypedDict):
     descriptions: list[str]
     name: str
     qty: str
+    text: NotRequired[str]
 
 class DiscogsIdentifier(TypedDict):
     type: str
