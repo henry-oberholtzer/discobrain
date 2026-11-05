@@ -1,11 +1,11 @@
 import pytest
 
-from release_converter.musicbrainz import MBReleaseType
-from release_converter.utils import (
-    guess_iso_15924,
-    release_type_from_title,
-    release_type_from_tracks,
+from release_converter.musicbrainz import (
+    MBReleaseType,
+    mb_release_type_from_title,
+    mb_release_type_from_tracks,
 )
+from release_converter.utils import guess_iso_15924
 
 
 @pytest.mark.parametrize("text,script", [(
@@ -34,7 +34,7 @@ def test_most_common_script(text: str, script: str):
     ("Acid Techno in the Modern Era E.P. Vol 1", MBReleaseType.EP)
     ])
 def test_from_title(given: str, expected: str):
-    assert release_type_from_title(given) == expected
+    assert mb_release_type_from_title(given) == expected
 
 @pytest.mark.parametrize("tracks,expected", [
     (1, MBReleaseType.SINGLE),
@@ -47,4 +47,4 @@ def test_from_title(given: str, expected: str):
     (8, MBReleaseType.ALBUM)
     ])
 def test_from_tracks(tracks: int, expected: str):
-    assert release_type_from_tracks(tracks) == expected
+    assert mb_release_type_from_tracks(tracks) == expected

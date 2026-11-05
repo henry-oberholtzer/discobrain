@@ -10,6 +10,7 @@ from functools import cached_property
 from os import PathLike
 from pathlib import Path
 from typing import ClassVar
+from requests_ratelimiter import LimiterSession
 
 from isocodes import countries
 
@@ -18,6 +19,8 @@ from .utils import guess_iso_639_3, guess_iso_15924
 LOWERCASE_WORDS = ["the", "da", "of", "for", "an?", "in", "to", "remix", "original mix", "mix", "dub mix", "remix", "edit", "re-edit", "presents", "feat.?"]
 
 MUSICBRAINZ_API_ROOT = "https://musicbrainz.org/ws/2/"
+
+MUSICBRAINZ_REQUESTS_PER_SECOND = 1
 
 class MBReleaseType(StrEnum):
     ALBUM = "Album"
@@ -197,13 +200,40 @@ class MBRelease(MBBase):
     def script(self) -> str:
         return guess_iso_15924(self._text_sample())
 
+def mb_release_type_from_title(title: str) -> MBReleaseType:
+    """
+    if ends with 'LP' or 'Album' -> Album
+    if ends with 'EP', or 'E.P.'-> EP
+    """
+    normalized = re.sub(r'[^a-z ]', '', title.lower())
+    print(normalized)
+    if normalized.endswith('ep') or ' ep ' in normalized:
+        return MBReleaseType.EP
+    if normalized.endswith(('album', 'lp')):
+        return MBReleaseType.ALBUM
+    return MBReleaseType.NONE
+
+def mb_release_type_from_tracks(num_tracks: int) -> MBReleaseType:
+    if num_tracks < 4:
+        return MBReleaseType.SINGLE
+    elif num_tracks < 7:
+        return MBReleaseType.EP
+    return MBReleaseType.ALBUM
+
+DB_RELATIONS = [
+    "artist",
+    "label",
+    "release",
+    "release-group"
+]
+
 
 class MusicBrainzLookUp:
     """
     Look and cache up musicbrainz entities corresponding to a given URL
     """
     def __init__(self,
-        user_agent: str | None = None,
+        user_agent: str,
         db_file: Path | PathLike | str | None = None,
         api_root: str | None = None
     ):
@@ -225,11 +255,24 @@ class MusicBrainzLookUp:
     def db(self) -> sqlite3.Connection:
         return sqlite3.connect(self.db_path)
 
+    @property
+    def session(self) -> LimiterSession:
+        s = LimiterSession(
+            per_second=MUSICBRAINZ_REQUESTS_PER_SECOND,
+        )
+        s.headers.update({ "User-Agent": self.user_agent })
+        return s
+
     def _init_tables(self):
-        pass
+        raise NotImplementedError
 
+    def bulk_query(self, urls: list[str], relation: list[str]):
+        raise NotImplementedError
 
-    def query_all(self):
+    def query(self, url: str, relation: str):
+        # Either immediately returns a query or enqueus it.
+        if relation not in DB_RELATIONS:
+            raise ValueError("Unknown relationship type!")
         """
         Run all batched queries
         """

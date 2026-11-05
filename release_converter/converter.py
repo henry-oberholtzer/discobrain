@@ -5,16 +5,16 @@ from typing import cast
 
 import requests
 
-from release_converter import (
+from release_converter.discogs import DiscogsFormat, DiscogsRelease
+from release_converter.musicbrainz import (
     MBURL,
-    DiscogsFormat,
-    DiscogsRelease,
     MBRelease,
     MBReleaseType,
+    mb_release_type_from_title,
+    mb_release_type_from_tracks,
 )
 
 from .constants import USER_AGENT
-from .utils import release_type_from_title, release_type_from_tracks
 
 DISCOGS_ENDPOINT = "https://api.discogs.com"
 
@@ -68,10 +68,10 @@ def release_type(d: DiscogsRelease) -> str:
     release_type = release_type_from_format(d['formats'])
     # 2. From title (artist intent)
     if not release_type:
-        release_type = release_type_from_title(d['title'])
+        release_type = mb_release_type_from_title(d['title'])
     # 3. From track count
     if not release_type:
-        release_type = release_type_from_tracks(len(d['tracklist']))
+        release_type = mb_release_type_from_tracks(len(d['tracklist']))
     return release_type
 
 def release_disambiguation(formats: list[DiscogsFormat]) -> str:
