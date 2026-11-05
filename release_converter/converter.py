@@ -1,12 +1,20 @@
+
 import re
 from itertools import chain
 from typing import cast
 
 import requests
 
-from discobrain import USER_AGENT
-from discobrain.discogs_release import DiscogsFormat, DiscogsRelease
-from discobrain.mb_release import MBURL, MBRelease, MBReleaseType
+from release_converter import (
+    MBURL,
+    DiscogsFormat,
+    DiscogsRelease,
+    MBRelease,
+    MBReleaseType,
+)
+
+from .constants import USER_AGENT
+from .utils import release_type_from_title, release_type_from_tracks
 
 DISCOGS_ENDPOINT = "https://api.discogs.com"
 
@@ -44,7 +52,7 @@ def format_descs(formats: list[DiscogsFormat]) -> set[str]:
     descriptions = set(chain.from_iterable(descriptions))
     return descriptions
 
-def type_from_format(formats: list[DiscogsFormat]) -> MBReleaseType:
+def release_type_from_format(formats: list[DiscogsFormat]) -> MBReleaseType:
     descriptions = format_descs(formats)
     if not set(ALBUM).isdisjoint(descriptions):
         return MBReleaseType.ALBUM
@@ -54,35 +62,16 @@ def type_from_format(formats: list[DiscogsFormat]) -> MBReleaseType:
         return MBReleaseType.SINGLE
     return MBReleaseType.NONE
 
-def type_from_title(title: str) -> MBReleaseType:
-    """
-    if ends with 'LP' or 'Album' -> Album
-    if ends with 'EP', or 'E.P.'-> EP
-    """
-    normalized = re.sub(r'[^a-z ]', '', title.lower())
-    print(normalized)
-    if normalized.endswith('ep') or ' ep ' in normalized:
-        return MBReleaseType.EP
-    if normalized.endswith(('album', 'lp')):
-        return MBReleaseType.ALBUM
-    return MBReleaseType.NONE
-
-def type_from_tracks(num_tracks) -> MBReleaseType:
-    if num_tracks < 4:
-        return MBReleaseType.SINGLE
-    elif num_tracks < 7:
-        return MBReleaseType.EP
-    return MBReleaseType.ALBUM
 
 def release_type(d: DiscogsRelease) -> str:
     # 1. From given information (most reliable)
-    release_type = type_from_format(d['formats'])
+    release_type = release_type_from_format(d['formats'])
     # 2. From title (artist intent)
     if not release_type:
-        release_type = type_from_title(d['title'])
+        release_type = release_type_from_title(d['title'])
     # 3. From track count
     if not release_type:
-        release_type = type_from_tracks(d['tracklist'])
+        release_type = release_type_from_tracks(len(d['tracklist']))
     return release_type
 
 def release_disambiguation(formats: list[DiscogsFormat]) -> str:
@@ -92,8 +81,8 @@ def release_disambiguation(formats: list[DiscogsFormat]) -> str:
     return f"{', '.join([*free_text, *disambiguators])}".lower()
 
 
-class ReleaseConverter:
 
+class ReleaseConverter:
 
     def _discogs_id_extract(self, discogs_url: str | int) -> int:
         if isinstance(discogs_url, int):

@@ -2,17 +2,23 @@
 # https://musicbrainz.org/doc/Development/Seeding/Release_Editor
 import dataclasses
 import re
+import sqlite3
 from collections.abc import MutableMapping
 from dataclasses import dataclass
 from enum import StrEnum
+from functools import cached_property
+from os import PathLike
+from pathlib import Path
 from typing import ClassVar
 
-from guess_language import guess_language
-from isocodes import countries, extended_languages
+from isocodes import countries
 
-from discobrain.utils import most_common_script
+from .utils import guess_iso_639_3, guess_iso_15924
 
 LOWERCASE_WORDS = ["the", "da", "of", "for", "an?", "in", "to", "remix", "original mix", "mix", "dub mix", "remix", "edit", "re-edit", "presents", "feat.?"]
+
+MUSICBRAINZ_API_ROOT = "https://musicbrainz.org/ws/2/"
+
 class MBReleaseType(StrEnum):
     ALBUM = "Album"
     SINGLE = "Single"
@@ -185,15 +191,46 @@ class MBRelease(MBBase):
 
     @property
     def language(self) -> str:
-        sample = self._text_sample()
-        if len(sample) > 20:
-            guess = guess_language(sample)
-            if isinstance(guess, str):
-                return extended_languages.get(alpha_2=guess)['alpha_3']
-        return ""
+        return guess_iso_639_3(self._text_sample())
 
     @property
     def script(self) -> str:
-        return most_common_script(self._text_sample())
+        return guess_iso_15924(self._text_sample())
 
+
+class MusicBrainzLookUp:
+    """
+    Look and cache up musicbrainz entities corresponding to a given URL
+    """
+    def __init__(self,
+        user_agent: str | None = None,
+        db_file: Path | PathLike | str | None = None,
+        api_root: str | None = None
+    ):
+        self.user_agent = user_agent
+        self.db_file = db_file
+        # If a database file is given, create the tables on it if they don't exist
+        if not api_root:
+            self.api_root = MUSICBRAINZ_API_ROOT
+        else:
+            self.api_root = api_root
+
+    @property
+    def db_path(self) -> str:
+        if self.db_file:
+            return str(Path(self.db_file).resolve().absolute())
+        return ":memory:"
+
+    @cached_property
+    def db(self) -> sqlite3.Connection:
+        return sqlite3.connect(self.db_path)
+
+    def _init_tables(self):
+        pass
+
+
+    def query_all(self):
+        """
+        Run all batched queries
+        """
 

@@ -5,14 +5,12 @@ from typing import cast
 import pytest
 from pytest import MonkeyPatch
 
-from discobrain.discogs_release import DiscogsFormat, DiscogsRelease
-from discobrain.mb_release import MBReleaseType
-from discobrain.release_converter import (
+from release_converter import (
     ReleaseConverter,
-    release_disambiguation,
-    type_from_title,
-    type_from_tracks,
 )
+from release_converter.converter import release_disambiguation
+from release_converter.discogs import DiscogsFormat, DiscogsRelease
+from release_converter.musicbrainz import MBReleaseType
 
 FILE_PATH = Path(__file__).absolute()
 
@@ -34,27 +32,6 @@ def test_discogs_e2e():
     release = ReleaseConverter()._discogs_release_endpoint(13954)
     assert release is not None
     assert release['title'] == "Through The Eyes Of A Scorpion"
-
-@pytest.mark.parametrize("given,expected", [
-    ("The Big Bang LP", MBReleaseType.ALBUM),
-    ("A Problem Joe Nicely (E.P.)", MBReleaseType.EP),
-    ("Acid Techno in the Modern Era E.P. Vol 1", MBReleaseType.EP)
-    ])
-def test_from_title(given: str, expected: str):
-    assert type_from_title(given) == expected
-
-@pytest.mark.parametrize("tracks,expected", [
-    (1, MBReleaseType.SINGLE),
-    (2, MBReleaseType.SINGLE),
-    (3, MBReleaseType.SINGLE),
-    (4, MBReleaseType.EP),
-    (5, MBReleaseType.EP),
-    (6, MBReleaseType.EP),
-    (7, MBReleaseType.ALBUM),
-    (8, MBReleaseType.ALBUM)
-    ])
-def test_from_tracks(tracks: int, expected: str):
-    assert type_from_tracks(tracks) == expected
 
 @pytest.mark.parametrize("given,expected", [
     (
