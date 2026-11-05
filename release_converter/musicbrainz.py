@@ -5,6 +5,7 @@ import re
 import sqlite3
 from collections.abc import MutableMapping
 from dataclasses import dataclass
+from datetime import datetime
 from enum import StrEnum
 from functools import cached_property
 from os import PathLike
@@ -220,11 +221,11 @@ def mb_release_type_from_tracks(num_tracks: int) -> MBReleaseType:
         return MBReleaseType.EP
     return MBReleaseType.ALBUM
 
-DB_RELATIONS = [
+DB_TABLES = [
     "artist",
     "label",
     "release",
-    "release-group"
+    "releasegroup"
 ]
 
 
@@ -235,7 +236,8 @@ class MusicBrainzLookUp:
     def __init__(self,
         user_agent: str,
         db_file: Path | PathLike | str | None = None,
-        api_root: str | None = None
+        api_root: str | None = None,
+        init_tables: bool = True
     ):
         self.user_agent = user_agent
         self.db_file = db_file
@@ -244,6 +246,8 @@ class MusicBrainzLookUp:
             self.api_root = MUSICBRAINZ_API_ROOT
         else:
             self.api_root = api_root
+        if init_tables:
+            self.init_tables()
 
     @property
     def db_path(self) -> str:
@@ -263,16 +267,41 @@ class MusicBrainzLookUp:
         s.headers.update({ "User-Agent": self.user_agent })
         return s
 
-    def _init_tables(self):
-        raise NotImplementedError
+    def table_definition(self, name: str):
+        return f"""
+        CREATE TABLE IF NOT EXISTS {name}(
+            url TEXT UNIQUE NOT NULL,
+            mbid TEXT NOT NULL,
+            timestamp TEXT NOT NULL
+        );
+        """
+
+    def store(self, url: str, mbid: str, table: str):
+        """
+        Store the given data
+        """
+        if table not in DB_TABLES:
+            raise ValueError("Unknown table!")
+        cursor = self.db.cursor()
+        cursor.execute(
+            f"INSERT INTO {table} (url, mbid, timestamp) VALUES (?, ?, ?)",
+            (url, mbid, datetime.now().isoformat())
+        )
+        cursor.close()
+
+    def init_tables(self):
+        cursor = self.db.cursor()
+        for table in DB_TABLES:
+            cursor.execute(self.table_definition(table))
+        cursor.close()
 
     def bulk_query(self, urls: list[str], relation: list[str]):
         raise NotImplementedError
 
-    def query(self, url: str, relation: str):
+    def query(self, url: str, table: str):
         # Either immediately returns a query or enqueus it.
-        if relation not in DB_RELATIONS:
-            raise ValueError("Unknown relationship type!")
+        if table not in DB_TABLES:
+            raise ValueError("Unknown table!")
         """
         Run all batched queries
         """
