@@ -5,7 +5,7 @@ import re
 import sqlite3
 from collections.abc import MutableMapping
 from dataclasses import dataclass
-from datetime import datetime
+import datetime
 from enum import StrEnum
 from functools import cached_property
 from os import PathLike
@@ -276,6 +276,10 @@ class MusicBrainzLookUp:
         );
         """
 
+    @property
+    def zulu_timestamp(self):
+        return datetime.datetime.now(datetime.UTC).isoformat().replace('+00:00', 'Z')
+
     def store(self, url: str, mbid: str, table: str):
         """
         Store the given data
@@ -285,7 +289,7 @@ class MusicBrainzLookUp:
         cursor = self.db.cursor()
         cursor.execute(
             f"INSERT INTO {table} (url, mbid, timestamp) VALUES (?, ?, ?)",
-            (url, mbid, datetime.now().isoformat())
+            (url, mbid, self.zulu_timestamp)
         )
         cursor.close()
 
@@ -298,11 +302,14 @@ class MusicBrainzLookUp:
     def bulk_query(self, urls: list[str], relation: list[str]):
         raise NotImplementedError
 
-    def query(self, url: str, table: str):
+    def get_mbid(self, url: str, table: str) -> str | None:
         # Either immediately returns a query or enqueus it.
         if table not in DB_TABLES:
             raise ValueError("Unknown table!")
-        """
-        Run all batched queries
-        """
+        cursor = self.db.cursor()
+        response = cursor.execute(f"SELECT mbid FROM {table} WHERE url='{url}'").fetchone()
+        cursor.close()
+        if response:
+            return response[0]
+        return None
 

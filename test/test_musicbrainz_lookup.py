@@ -2,6 +2,7 @@ import os
 import sqlite3
 import tempfile
 from collections.abc import Generator
+import datetime
 
 import pytest
 from requests_ratelimiter import LimiterSession
@@ -66,8 +67,28 @@ def test_insert():
     mb.store(url, mbid, "artist")
     cursor = mb.db.cursor()
     rows = cursor.execute("SELECT * FROM artist").fetchall()
+    cursor.close()
     assert len(rows) == 1
     assert rows[0][0] == url
     assert rows[0][1] == mbid
-    cursor.close()
+    assert rows[0][2].endswith('Z')
+    assert datetime.datetime.fromisoformat(rows[0][2]).timestamp() == pytest.approx(datetime.datetime.now(datetime.UTC).timestamp())
+
+@pytest.mark.parametrize("url,table,expected", [
+    ("https://discogs.com/release/1234", "release", None),
+    ("https://discogs.com/release/123", "release", "abcd")
+])
+def test_get_mbid(url, table, expected):
+    mb = MusicBrainzLookUp(TEST_AGENT)
+    mb.store("https://discogs.com/release/123", "abcd", "release")
+    """
+    Test that an existing entry is returned, and a non existing one returns None
+    """
+    result = mb.get_mbid(url, table)
+    assert result == expected
+
+def test_expired():
+    """
+    Test than an entry that is retrieved and determined to be too old is 
+    """
 
