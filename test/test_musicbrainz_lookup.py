@@ -1,14 +1,15 @@
+import datetime
 import os
 import sqlite3
 import tempfile
 from collections.abc import Generator
-import datetime
 
 import pytest
 from requests_ratelimiter import LimiterSession
 
 from release_converter.musicbrainz import MUSICBRAINZ_API_ROOT, MusicBrainzLookUp
-TEST_AGENT = "USER AGENT"
+
+TEST_AGENT = "DiscobrainTest/0.0.1 ( henryoberholtzer@gmail.com )"
 
 @pytest.fixture
 def tempdb() -> Generator[str, None, None]:
@@ -45,10 +46,6 @@ def test_session():
     assert isinstance(mb.session, LimiterSession)
     assert mb.session.headers["User-Agent"] == TEST_AGENT
 
-def test_table_definition():
-    mb = MusicBrainzLookUp(TEST_AGENT)
-    assert "artist" in mb.table_definition("artist")
-
 def test__init_tables():
     mb = MusicBrainzLookUp(TEST_AGENT, init_tables=False)
     cursor = mb.db.cursor()
@@ -57,22 +54,24 @@ def test__init_tables():
     assert tables.fetchone() is None
     mb.init_tables()
     tables = cursor.execute("SELECT name FROM sqlite_master WHERE type='table'")
-    assert len(tables.fetchall()) == 4
+    assert len(tables.fetchall()) == 1
     cursor.close()
 
 def test_insert():
     mb = MusicBrainzLookUp(TEST_AGENT)
     url = "https://discogs.com/123"
     mbid = "abcd"
-    mb.store(url, mbid, "artist")
+    artist = "artist"
+    mb.store(url, mbid, artist)
     cursor = mb.db.cursor()
-    rows = cursor.execute("SELECT * FROM artist").fetchall()
+    rows = cursor.execute("SELECT * FROM cache").fetchall()
     cursor.close()
     assert len(rows) == 1
     assert rows[0][0] == url
     assert rows[0][1] == mbid
-    assert rows[0][2].endswith('Z')
-    assert datetime.datetime.fromisoformat(rows[0][2]).timestamp() == pytest.approx(datetime.datetime.now(datetime.UTC).timestamp())
+    assert rows[0][2] == artist
+    assert rows[0][3].endswith('Z')
+    assert datetime.datetime.fromisoformat(rows[0][3]).timestamp() == pytest.approx(datetime.datetime.now(datetime.UTC).timestamp())
 
 @pytest.mark.parametrize("url,table,expected", [
     ("https://discogs.com/release/1234", "release", None),
@@ -87,8 +86,16 @@ def test_get_mbid(url, table, expected):
     result = mb.get_mbid(url, table)
     assert result == expected
 
-def test_expired():
-    """
-    Test than an entry that is retrieved and determined to be too old is 
-    """
+def test_get_url_resources_single():
+    mb = MusicBrainzLookUp(TEST_AGENT)
+    response = mb.get_url_resources(["https://www.discogs.com/release/13954"])
+    assert response == [("https://www.discogs.com/release/13954", "ceccb90b-59f8-4856-ab15-c980ed653b1d", "release")]
+
+def test_get_url_resources_multiple():
+    mb = MusicBrainzLookUp(TEST_AGENT)
+    response = mb.get_url_resources(["https://www.discogs.com/release/13954", "https://www.discogs.com/label/1"])
+    assert response == [
+            ("https://www.discogs.com/release/13954", "ceccb90b-59f8-4856-ab15-c980ed653b1d", "release"),
+            ("https://www.discogs.com/label/1", "a0fb31fd-1faa-42fd-9bbe-7da22b83a42e", "label"),
+    ]
 

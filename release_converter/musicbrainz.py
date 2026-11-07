@@ -1,19 +1,22 @@
 # Implementation of
 # https://musicbrainz.org/doc/Development/Seeding/Release_Editor
 import dataclasses
+import datetime
+import itertools
 import re
 import sqlite3
 from collections.abc import MutableMapping
 from dataclasses import dataclass
-import datetime
 from enum import StrEnum
 from functools import cached_property
 from os import PathLike
 from pathlib import Path
-from typing import ClassVar
-from requests_ratelimiter import LimiterSession
+from typing import Any, ClassVar
+from urllib.parse import urljoin
 
 from isocodes import countries
+from requests.exceptions import HTTPError
+from requests_ratelimiter import LimiterSession
 
 from .utils import guess_iso_639_3, guess_iso_15924
 
@@ -221,13 +224,12 @@ def mb_release_type_from_tracks(num_tracks: int) -> MBReleaseType:
         return MBReleaseType.EP
     return MBReleaseType.ALBUM
 
-DB_TABLES = [
-    "artist",
-    "label",
-    "release",
-    "releasegroup"
-]
-
+DB_TABLE_MAPPING = {
+        "artist": "artist-rels",
+        "label": "label-rels",
+        "release": "release-rels",
+        "releasegroup": "release-group-rels"
+}
 
 class MusicBrainzLookUp:
     """
@@ -237,15 +239,12 @@ class MusicBrainzLookUp:
         user_agent: str,
         db_file: Path | PathLike | str | None = None,
         api_root: str | None = None,
-        init_tables: bool = True
+        init_tables: bool = True,
     ):
         self.user_agent = user_agent
         self.db_file = db_file
+        self.api_root = MUSICBRAINZ_API_ROOT if not api_root else api_root
         # If a database file is given, create the tables on it if they don't exist
-        if not api_root:
-            self.api_root = MUSICBRAINZ_API_ROOT
-        else:
-            self.api_root = api_root
         if init_tables:
             self.init_tables()
 
@@ -267,47 +266,98 @@ class MusicBrainzLookUp:
         s.headers.update({ "User-Agent": self.user_agent })
         return s
 
-    def table_definition(self, name: str):
-        return f"""
-        CREATE TABLE IF NOT EXISTS {name}(
+    def table_definition(self):
+        return """
+        CREATE TABLE IF NOT EXISTS cache(
             url TEXT UNIQUE NOT NULL,
             mbid TEXT NOT NULL,
+            relationship TEXT NOT NULL,
             timestamp TEXT NOT NULL
         );
         """
+
+    def table_insert(self):
+        return "INSERT INTO cache (url, mbid, relationship, timestamp) VALUES (?, ?, ?, ?)"
 
     @property
     def zulu_timestamp(self):
         return datetime.datetime.now(datetime.UTC).isoformat().replace('+00:00', 'Z')
 
-    def store(self, url: str, mbid: str, table: str):
+    def store(self, url: str, mbid: str, relationship: str):
         """
         Store the given data
         """
-        if table not in DB_TABLES:
-            raise ValueError("Unknown table!")
         cursor = self.db.cursor()
         cursor.execute(
-            f"INSERT INTO {table} (url, mbid, timestamp) VALUES (?, ?, ?)",
-            (url, mbid, self.zulu_timestamp)
+            self.table_insert(),
+            (url, mbid, relationship, self.zulu_timestamp)
         )
         cursor.close()
 
+    def get(self, endpoint: str, params: dict[str, Any]) -> dict[str, Any] | None:
+        try:
+            print(params)
+            response = self.session.get(
+                urljoin(self.api_root, endpoint,),
+                params={
+                    **params,
+                    "fmt": "json"
+                }
+            )
+            response.raise_for_status()
+            return response.json()
+        except HTTPError as e:
+            print(e)
+            return None
+
+    def get_rel_data(self, data: dict[str, Any]):
+        rels = []
+        resource = data["resource"]
+        relations = data.get("relations")
+        if relations:
+            for relation in relations:
+                target_type = relation["target-type"]
+                target_mbid = relation[target_type]["id"]
+                rels.append((resource, target_mbid, target_type, self.zulu_timestamp))
+        return rels
+
+    def _get_url_resources(self, 
+        resources: list[str]):
+        data = []
+        for batch in itertools.batched(resources, 100):
+            response = self.get("url", { 
+                "resource": resources,
+                "inc": "+".join(DB_TABLE_MAPPING.values())
+            })
+            if response is not None:
+                if response.get("urls"):
+                    for url in response["urls"]:
+                        data.extend(self.get_rel_data(url))
+                else:
+                    data.extend(self.get_rel_data(response))
+        return data
+
+    def get_url_resources(self, resources: list[str]):
+        data = self._get_url_resources(resources)
+        cursor = self.db.cursor()
+        cursor.executemany(self.table_insert(), data)
+        cursor.close()
+        self.db.commit()
+        return data
+
+
     def init_tables(self):
         cursor = self.db.cursor()
-        for table in DB_TABLES:
-            cursor.execute(self.table_definition(table))
+        cursor.execute(self.table_definition())
         cursor.close()
 
-    def bulk_query(self, urls: list[str], relation: list[str]):
+    def bulk_query(self, urls: list[str]):
         raise NotImplementedError
 
-    def get_mbid(self, url: str, table: str) -> str | None:
+    def get_mbid(self, url: str, relationship: str) -> str | None:
         # Either immediately returns a query or enqueus it.
-        if table not in DB_TABLES:
-            raise ValueError("Unknown table!")
         cursor = self.db.cursor()
-        response = cursor.execute(f"SELECT mbid FROM {table} WHERE url='{url}'").fetchone()
+        response = cursor.execute(f"SELECT mbid FROM cache WHERE url='{url}' AND relationship='{relationship}'").fetchone()
         cursor.close()
         if response:
             return response[0]
