@@ -1,3 +1,5 @@
+from discobrain.release_converter.discogs import DiscogsLabel
+from discobrain.release_converter.discogs import DiscogsReleaseArtist
 import json
 from pathlib import Path
 from typing import cast
@@ -12,6 +14,8 @@ from discobrain.release_converter.converter import (
     discogs_strip_disambiguation,
     discogs_tracklist,
     release_disambiguation,
+    build_artist,
+    build_label
 )
 from discobrain.release_converter.discogs import DiscogsFormat, DiscogsRelease
 from discobrain.release_converter.musicbrainz import (
@@ -213,6 +217,74 @@ def test_discogs_teebee(monkeypatch: MonkeyPatch):
 @pytest.mark.parametrize("given,expected", [("Artist (9)", "Artist"), ("Artist Name 123  (4)", "Artist Name 123")])
 def test_discogs_strip_disambiguation(given: str, expected: str):
     assert discogs_strip_disambiguation(given) == expected
+
+@pytest.mark.parametrize("given,expected", [
+    pytest.param(
+        {
+            "id": 194
+        },
+        MBName(mbid="89ad4ac3-39f7-470e-963a-56509c546377"),
+        id="Various -> Various Artists"
+    ),
+    pytest.param(
+        {
+        "id": 355
+        },
+        MBName(mbid="125ec42a-7229-4250-afc5-e057484327fe"),
+        id="Unknown Artist -> [unknown]"
+    ),
+    pytest.param(
+        {
+            "id": 1
+        },
+        MBName(mbid="https://www.discogs.com/artist/1"),
+        id="Minimal artist"
+    ),
+    pytest.param(
+        {
+            "name": "The Persuader",
+            "anv": "Persuader",
+            "join": ",",
+            "id": 1
+        },
+        MBName(
+            name="Persuader",
+            artist=MBArtistName(name="The Persuader"),
+            mbid="https://www.discogs.com/artist/1",
+            join_phrase=", "
+        ),
+        id="Full artist"
+    )
+])
+def test_build_artist(given: DiscogsReleaseArtist, expected: MBName):
+    assert build_artist(given) == expected
+
+@pytest.mark.parametrize("given,expected", [
+    pytest.param(
+        {
+        "name": "Not On Label (Depeche Mode)",
+        },
+        MBLabel(
+            mbid="157afde4-4bf5-4039-8ad2-5a15acc85176"
+        ),
+        id="Not On Label -> [no label]"
+    ),
+    pytest.param(
+        {
+        "name": "Integral Records (2)",
+        "id" : 87299,
+        "catno": "INT 005"
+        },
+        MBLabel(
+            name="Integral Records",
+            mbid="https://www.discogs.com/label/87299",
+            catalog_number="INT 005"
+        ),
+        id="Full label w/ Disambiguation"
+    )
+])
+def test_build_label(given: DiscogsLabel, expected: MBLabel):
+    assert build_label(given) == expected
 
 
 def test_discogs_converter_replaces_or_clears_discogs_ids():

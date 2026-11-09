@@ -157,7 +157,9 @@ def mm_ss_to_ms(duration: str) -> int | None:
     segments = duration.split(':')
     return (int(segments[0]) * 60 + int(segments[1]))*1000
 
-def discogs_strip_disambiguation(name: str) -> str:
+def discogs_strip_disambiguation(name: str | None = None) -> str | None:
+    if not name:
+        return name
     return re.sub(r'\s*\(\d+\)$', '', name)
 
 def make_join(join: str | None) -> str | None:
@@ -182,7 +184,8 @@ def build_artist(d_artist: DiscogsReleaseArtist) -> MBName:
         anv = discogs_strip_disambiguation(d_artist.get('anv'))
         name = discogs_strip_disambiguation(d_artist.get('name'))
         artist.name = anv if anv else name
-        artist.artist = MBArtistName(name=name)
+        if name:
+            artist.artist = MBArtistName(name=name)
     artist.join_phrase=make_join(d_artist.get('join'))
     return artist
 
@@ -225,8 +228,16 @@ def discogs_tracklist(d: DiscogsRelease) -> list[MBMedium]:
             mb_track.artist_credit = deepcopy(album_artist)
         if extra_artists := track.get('extraartists'):
             extra = build_artists([ea for ea in extra_artists if ea['role'] in EXTRA_ARTIST_TYPES])
-            mb_track.artist_credit.names[-1].join_phrase = make_join("Feat.")
-            mb_track.artist_credit.names.extend(extra.names)
+            if total_featuring := len(extra.names):
+                mb_track.artist_credit.names[-1].join_phrase = make_join("Feat.")
+                # Now add the joins.
+                for idx, name in enumerate(extra.names):
+                    # if there's something following, we need a join
+                    if not name.join_phrase and idx + 1 < total_featuring:
+                        name.join_phrase = make_join(',')
+                if len(extra.names) >= 3:
+                    extra.names[-2].join_phrase = make_join('&')
+                mb_track.artist_credit.names.extend(extra.names)
         if not mediums[current_medium].track:
             mediums[current_medium].track = [mb_track]
         elif mediums[current_medium].track:
@@ -234,20 +245,20 @@ def discogs_tracklist(d: DiscogsRelease) -> list[MBMedium]:
 
     return mediums
 
-def build_label(l: DiscogsLabel) -> MBLabel:
+def build_label(label: DiscogsLabel) -> MBLabel:
     # Handle the No Label exception
-    if "Not On Label" in l['name']:
+    if "Not On Label" in label['name']:
         return MBLabel(
             mbid="157afde4-4bf5-4039-8ad2-5a15acc85176"
     )
     return MBLabel(
-        name=discogs_strip_disambiguation(l['name']),
-        catalog_number=l['catno'],
-        mbid=f"https://www.discogs.com/label/{l['id']}"
+        name=discogs_strip_disambiguation(label['name']),
+        catalog_number=label.get('catno'),
+        mbid=f"https://www.discogs.com/label/{label['id']}"
     )
 
-def build_labels(l: list[DiscogsLabel]) -> list[MBLabel]:
-    return [build_label(label) for label in l]
+def build_labels(labels: list[DiscogsLabel]) -> list[MBLabel]:
+    return [build_label(label) for label in labels]
 
 def discogs_master_release(d: DiscogsRelease) -> str | None:
     master_id = d.get('master_id')
