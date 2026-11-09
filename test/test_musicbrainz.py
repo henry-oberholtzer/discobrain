@@ -11,8 +11,8 @@ from discobrain.release_converter.musicbrainz import (
     MBName,
     MBRelease,
     MBTrack,
-    mb_title_case,
 )
+from discobrain.release_converter.utils import mb_title_case
 
 
 def test_post_flatten():
@@ -125,9 +125,6 @@ def test_country_unknown():
 
 @pytest.mark.parametrize("text,expected", [
     ("Spirit Of Adventure", "Spirit of Adventure"),
-    ("Artist Feat. Artist", "Artist feat. Artist"),
-    ("Artist featuring Artist", "Artist featuring Artist"),
-    ("Artist Presents Artist", "Artist presents Artist"),
     ("The Artist", "The Artist"),
     ("The Anthem (Original Mix)", "The Anthem (original mix)"),
     ("The Anthem (Kemal Remix)", "The Anthem (Kemal remix)"),

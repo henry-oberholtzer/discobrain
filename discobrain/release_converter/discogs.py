@@ -447,3 +447,8 @@ DISCOGS_FORMAT_MAPPING = {
     "Acetate": {},
     "Lathe Cut": {}
 }
+
+DISCOGS_GENRE_MAPPING = {
+    "Electronic": "electronic"
+}
+

@@ -18,9 +18,7 @@ from isocodes import countries
 from requests.exceptions import HTTPError
 from requests_ratelimiter import LimiterSession
 
-from .utils import guess_iso_639_3, guess_iso_15924
-
-LOWERCASE_WORDS = ["the", "da", "of", "for", "an?", "in", "to", "remix", "original mix", "mix", "dub mix", "remix", "edit", "re-edit", "presents", "feat.?"]
+from .utils import guess_iso_639_3, guess_iso_15924, mb_title_case
 
 MUSICBRAINZ_API_ROOT = "https://musicbrainz.org/ws/2/"
 
@@ -59,15 +57,6 @@ def mb_dict_factory(data: MutableMapping, parent_key: str = '', sep: str = '.'):
                     items.append((idx_key, iterable_value))
     return dict(items)
 
-def mb_title_case(text: str) -> str:
-    def lowercase(matchobj) -> str:
-        return matchobj.group(0).lower()
-    if text.isupper() or text.isnumeric() or text.islower():
-        return text
-    for word in LOWERCASE_WORDS:
-        regex = rf'(?<=[\w\d\s,][\s\(]){word}(?=[\s,\)])'
-        text = re.sub(regex, lowercase, text, flags=re.IGNORECASE)
-    return text
 
 @dataclass
 class MBBase:
