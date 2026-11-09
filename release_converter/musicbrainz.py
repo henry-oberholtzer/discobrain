@@ -6,7 +6,7 @@ import itertools
 import re
 import sqlite3
 from collections.abc import MutableMapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import StrEnum
 from functools import cached_property
 from os import PathLike
@@ -48,7 +48,7 @@ def mb_dict_factory(data: MutableMapping, parent_key: str = '', sep: str = '.'):
             items.extend(mb_dict_factory(data=value, parent_key=flat_key).items())
         if isinstance(value, (str, int)):
             items.append((flat_key, value))
-        if isinstance(value, list):
+        if isinstance(value, list) and len(value):
             if isinstance(value[0], MutableMapping):
                 for idx, iterable_value in enumerate(value):
                     idx_key = f"{flat_key}{sep}{idx}"
@@ -108,7 +108,7 @@ class MBName(MBBase):
 
 @dataclass
 class MBArtistCredit(MBBase):
-    names: list[MBName]
+    names: list[MBName] = field(default_factory=list)
 
 @dataclass
 class MBTrack(MBBase):
@@ -121,15 +121,15 @@ class MBTrack(MBBase):
 
 @dataclass
 class MBMedium(MBBase):
+    track: list[MBTrack] = field(default_factory=list)
     format: str | None = None
     name: str | None = None
-    track: list[MBTrack] | None = None
 
 @dataclass
 class MBLabel(MBBase):
-    mbid: str
-    catalog_number: str
-    name: str
+    mbid: str | None = None
+    catalog_number: str | None = None
+    name: str | None = None
 
 @dataclass
 class MBDate(MBBase):

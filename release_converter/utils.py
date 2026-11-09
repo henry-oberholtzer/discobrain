@@ -1,6 +1,6 @@
 import unicode_blocks
 from guess_language import guess_language
-from isocodes import ISONamespaceRecord, extended_languages, script_names, countries
+from isocodes import ISONamespaceRecord, extended_languages, script_names
 
 
 def guess_iso_15924(text: str) -> str:

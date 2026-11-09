@@ -74,6 +74,8 @@ class DiscogsTrack(TypedDict):
     position: str
     title: str
     type_: str
+    artists: NotRequired[list[DiscogsReleaseArtist]]
+    extraartists: NotRequired[list[DiscogsReleaseArtist]]
 
 class DiscogsVideo(TypedDict):
     description: str
@@ -93,7 +95,7 @@ class DiscogsRelease(TypedDict):
     date_added: str
     date_changed: str
     estimated_weight: int
-    extraartists:  list[DiscogsReleaseExtraArtist]
+    extraartists:  list[DiscogsReleaseArtist]
     format_quantity: int
     formats: list[DiscogsFormat]
     genres: list[str]

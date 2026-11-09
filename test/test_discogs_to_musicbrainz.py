@@ -1,10 +1,3 @@
-from release_converter.musicbrainz import MBArtistName
-from release_converter.musicbrainz import MBName
-from release_converter.musicbrainz import MBArtistCredit
-from release_converter.musicbrainz import MBMedium
-from release_converter.discogs import DiscogsTrack
-from release_converter.musicbrainz import MBDate
-from release_converter.musicbrainz import MBEvent, MBTrack
 import json
 from pathlib import Path
 from typing import cast
@@ -15,9 +8,24 @@ from pytest import MonkeyPatch
 from release_converter import (
     ReleaseConverter,
 )
-from release_converter.converter import release_disambiguation, discogs_tracklist
+from release_converter.converter import (
+    discogs_strip_disambiguation,
+    discogs_tracklist,
+    release_disambiguation,
+)
 from release_converter.discogs import DiscogsFormat, DiscogsRelease
-from release_converter.musicbrainz import MBReleaseType
+from release_converter.musicbrainz import (
+    MBArtistCredit,
+    MBArtistName,
+    MBDate,
+    MBEvent,
+    MBMedium,
+    MBLabel,
+    MBURL,
+    MBName,
+    MBReleaseType,
+    MBTrack,
+)
 
 FILE_PATH = Path(__file__).absolute()
 
@@ -69,7 +77,7 @@ def test_release_disambiguation(given: list[DiscogsFormat], expected: str):
                     names=[
                         MBName(
                             name="Noisia",
-                            mbid="ec22a32b-acab-432e-a88c-ffe6ae68fa16",
+                            mbid="100457",
                             artist=MBArtistName(name="Noisia"),
                         )
                     ]
@@ -83,13 +91,13 @@ def test_release_disambiguation(given: list[DiscogsFormat], expected: str):
                     names=[
                         MBName(
                             name="Noisia",
-                            mbid="ec22a32b-acab-432e-a88c-ffe6ae68fa16",
+                            mbid="100457",
                             artist=MBArtistName(name="Noisia"),
                             join_phrase=" Feat. "
                         ),
                         MBName(
                             name="Phace",
-                            mbid="f43f6c18-2ac0-45c9-ad2e-cacc06f25187",
+                            mbid="132592",
                             artist=MBArtistName(name="Phace")
                         )
                     ]
@@ -99,36 +107,96 @@ def test_release_disambiguation(given: list[DiscogsFormat], expected: str):
     )
 ])
 def test_discogs_tracklist(given: DiscogsRelease, expected: list[MBMedium]):
-    assert discogs_tracklist(given['tracklist'], given['formats']) == expected
+    assert discogs_tracklist(given) == expected
 
 
-def test_discogs(monkeypatch: MonkeyPatch):
+def test_discogs_teebee(monkeypatch: MonkeyPatch):
     monkeypatch.setattr(ReleaseConverter, "_discogs_release_endpoint", lambda _, release_id: load_json(release_id))
     release = ReleaseConverter().discogs(13954)
     assert release.name == "Through the Eyes of a Scorpion"
-    assert release.urls
-    assert len(release.urls) == 1
-    assert release.urls[0].url == "https://www.discogs.com/release/13954"
-    assert release.urls[0].link_type == 76
+    assert release.urls == [MBURL(url="https://www.discogs.com/release/13954", link_type=76)]
     assert release.barcode == "5033826056260"
     assert release.type == MBReleaseType.ALBUM
     assert release.comment == ""
     assert release.language == "eng"
     assert release.script == "Latn"
-    # release.annotation
     assert release.status == "official"
-    # release.packaging
     note = ("Imported from https://www.discogs.com/release/13954 using Discobrain"
     " https://github.com/henry-oberholtzer/discobrain")
     assert release.edit_note == note
-    # release.redirect_uri
-    assert release.events
-    assert len(release.events) == 1
-    assert release.events[0] == MBEvent(
+    assert release.events == [MBEvent(
         date=MBDate(year=2001, month=10, day=15),
-        country='GB')
-    # release.labels
-    # release.artist_credit
-    # release.mediums
+        country='GB')]
+    assert release.labels == [MBLabel(
+        name="Certificate 18",
+        mbid="161",
+        catalog_number="CERT18 LP014"
+    )]
+    teebee_credit = MBArtistCredit(
+        names=[
+        MBName(
+            name="DJ Teebee",
+            mbid="22979",
+            artist=MBArtistName(name="Teebee")
+        )
+    ]
+    )
+    assert release.artist_credit == teebee_credit
+    assert release.mediums == [
+            MBMedium(
+                format='12" Vinyl',
+                track=[
+                    MBTrack(
+                        name="Silent Depths",
+                        number="A",
+                        artist_credit=teebee_credit
+                    ),
+                    MBTrack(
+                        name="Revelations",
+                        number="B",
+                        artist_credit=teebee_credit
+            )]),
+            MBMedium(
+                format='12" Vinyl',
+                track=[
+                    MBTrack(
+                        name="Frequencies",
+                        number="C",
+                        artist_credit=teebee_credit
+                    ),
+                    MBTrack(
+                        name="Behind the Sun",
+                        number="D",
+                        artist_credit=teebee_credit
+            )]),
+            MBMedium(
+                format='12" Vinyl',
+                track=[
+                    MBTrack(
+                        name="Severed Dreams",
+                        number="E",
+                        artist_credit=teebee_credit
+                    ),
+                    MBTrack(
+                        name="Retaliation",
+                        number="F",
+                        artist_credit=teebee_credit
+            )]),
+            MBMedium(
+                format='12" Vinyl',
+                track=[
+                    MBTrack(
+                        name="Rave Alarm",
+                        number="G",
+                        artist_credit=teebee_credit
+                    ),
+                    MBTrack(
+                        name="Lost Souls",
+                        number="H",
+                        artist_credit=teebee_credit
+            )])
+    ]
 
-
+@pytest.mark.parametrize("given,expected", [("Artist (9)", "Artist"), ("Artist Name 123  (4)", "Artist Name 123")])
+def test_discogs_strip_disambiguation(given: str, expected: str):
+    assert discogs_strip_disambiguation(given) == expected

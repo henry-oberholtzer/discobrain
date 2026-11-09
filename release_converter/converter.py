@@ -1,21 +1,33 @@
-
-from release_converter.musicbrainz import MBTrack
-from copy import copy
-from release_converter.musicbrainz import MBMedium
-from release_converter.musicbrainz import MBEvent
-from release_converter.musicbrainz import MBDate
+from release_converter.musicbrainz import MBLabel
+from release_converter.discogs import DiscogsLabel
+from copy import deepcopy
 import re
 from itertools import chain
 from typing import cast
 
 import requests
+import math
 
-from release_converter.discogs import DiscogsFormat, DiscogsRelease, DISCOGS_ISO_COUNTRY_MAPPING, DiscogsTrack, DISCOGS_FORMAT_MAPPING
+from release_converter.discogs import (
+    DISCOGS_FORMAT_MAPPING,
+    DISCOGS_ISO_COUNTRY_MAPPING,
+    DiscogsFormat,
+    DiscogsTrack,
+    DiscogsRelease,
+    DiscogsReleaseArtist,
+)
 from release_converter.musicbrainz import (
     MBURL,
+    MBArtistCredit,
+    MBArtistName,
+    MBDate,
+    MBEvent,
+    MBMedium,
+    MBName,
     MBRelease,
     MBReleaseStatus,
     MBReleaseType,
+    MBTrack,
     mb_release_type_from_title,
     mb_release_type_from_tracks,
 )
@@ -34,6 +46,8 @@ SINGLE = ["Single", "Maxi-Single"]
 EP = ["EP"]
 
 DISAMBIGUATORS = ["White Label", "Repress", "Remastered", "Misprint"]
+
+EXTRA_ARTIST_TYPES = ["Featuring"]
 
 def barcode(d: DiscogsRelease) -> str:
     """
@@ -130,28 +144,107 @@ def discogs_build_mediums(format: list[DiscogsFormat]) -> list[MBMedium]:
         qty = int(f['qty'])
         medium.format = discogs_format_mapping(f)
         # Add as many of these as listed
-        mediums.extend([copy(medium) for i in range(qty)])
+        mediums.extend([deepcopy(medium) for i in range(qty)])
     return mediums
 
-def mm_ss_to_ms(duration: str) -> int:
+def mm_ss_to_ms(duration: str) -> int | None:
+    if not duration:
+        return None
     segments = duration.split(':')
     return (int(segments[0]) * 60 + int(segments[1]))*1000
 
+def discogs_strip_disambiguation(name: str) -> str:
+    return re.sub(r'\s*\(\d+\)$', '', name)
 
-def discogs_tracklist(tracklist: list[DiscogsTrack], format: list[DiscogsFormat]) -> list[MBMedium]:
-    mediums = discogs_build_mediums(format)
+def make_join(join: str | None) -> str | None:
+    if not join:
+        return None
+    if join in ",;":
+        return ", "
+    return f" {join.strip()} "
+
+def build_artist(d_artist: DiscogsReleaseArtist) -> MBName:
+    artist = MBName()
+    # If it's "Various", replace with the known MB various artists
+    if d_artist['id'] == 194:
+        artist.mbid="89ad4ac3-39f7-470e-963a-56509c546377"
+    # If it's unknown artist
+    elif d_artist['id'] == 355:
+        artist.mbid="125ec42a-7229-4250-afc5-e057484327fe"
+    else:
+        # Set this as a Discogs ID for now
+        # we'll see if we can find the artist later, otherwise we will drop it.
+        artist.mbid = str(d_artist.get('id'))
+        anv = discogs_strip_disambiguation(d_artist.get('anv'))
+        name = discogs_strip_disambiguation(d_artist.get('name'))
+        artist.name = anv if anv else name
+        artist.artist = MBArtistName(name=name)
+    artist.join_phrase=make_join(d_artist.get('join'))
+    return artist
+
+
+def build_artists(artists: list[DiscogsReleaseArtist]) -> MBArtistCredit:
+    return MBArtistCredit(names=[build_artist(artist) for artist in artists])
+
+def discogs_tracklist(d: DiscogsRelease) -> list[MBMedium]:
+    tracklist = d['tracklist']
+    mediums = discogs_build_mediums(d['formats'])
+    album_artist = build_artists(d['artists'])
+    current_side = 0
     current_medium = 0
-    for track in tracklist:
-        track = MBTrack(
+    for idx, track in enumerate(tracklist):
+        mb_track = MBTrack(
             name=track['title'],
             number=track['position'],
             length=mm_ss_to_ms(track['duration'])
         )
+        # Check if the medium should be changed
+
+        # The current medium must have a track to be eligible to change
+        # and there must be more mediums we can change to.
+        med = mediums[current_medium]
+        if idx != 0 and current_medium < len(mediums):
+            last_index = med.track[-1].number
+            if mb_track.number and last_index and mb_track.number[0] != last_index[0]:
+                # If the indices don't start the same, increment the curent medium
+                # If this medium is double sided, divide it by 2
+                if med.format and ("Vinyl" in med.format or "Cassette" in med.format):
+                    current_side += 1
+                    if current_side % 2 == 0:
+                        current_medium += 1
+                else:
+                    current_medium += 1
+                print(current_medium)
+
+        if track_artists := track.get('artists'):
+            mb_track.artist_credit = build_artists(track_artists)
+        else:
+            mb_track.artist_credit = deepcopy(album_artist)
+        if extra_artists := track.get('extraartists'):
+            extra = build_artists([ea for ea in extra_artists if ea['role'] in EXTRA_ARTIST_TYPES])
+            mb_track.artist_credit.names[-1].join_phrase = make_join("Feat.")
+            mb_track.artist_credit.names.extend(extra.names)
         if not mediums[current_medium].track:
-            mediums[current_medium].track = [track]
-        elif mediums[current_medium].track is not None:
-            mediums[current_medium].track.append(track)
+            mediums[current_medium].track = [mb_track]
+        elif mediums[current_medium].track:
+            mediums[current_medium].track.append(mb_track)
+
     return mediums
+
+def build_label(l: DiscogsLabel) -> MBLabel:
+    # Handle the No Label exception
+    if "Not On Label" in l['name']:
+        return MBLabel(
+            mbid="157afde4-4bf5-4039-8ad2-5a15acc85176"
+    )
+    return MBLabel(
+        name=discogs_strip_disambiguation(l['name']),
+        catalog_number=l['catno'],
+        mbid=str(l['id'])
+    )
+
+def build_labels(l: list[DiscogsLabel]) -> list[MBLabel]:
+    return [build_label(label) for label in l]
 
 
 class ReleaseConverter:
@@ -179,6 +272,7 @@ class ReleaseConverter:
 
     def _mb_from_discogs_release(self, d: DiscogsRelease) -> MBRelease:
         mb = MBRelease(name=d['title']) 
+        mb.artist_credit=build_artists(d['artists'])
         mb.barcode = barcode(d)
         mb.urls = [discogs_url(d)]
         mb.type = release_type(d)
@@ -186,12 +280,14 @@ class ReleaseConverter:
         mb.status = discogs_release_status(d['formats'])
         mb.edit_note = self.edit_note(d['id'])
         mb.events = discogs_release_events(d)
-        # fetch the release from discogs
+        mb.mediums = discogs_tracklist(d)
+        mb.labels = build_labels(d['labels'])
         return mb
 
 
     def discogs(self, discogs_release: str | int) -> MBRelease:
         id = self._discogs_id_extract(discogs_release)
+        # fetch the release from discogs
         release = self._discogs_release_endpoint(id)
         return self._mb_from_discogs_release(release)
 
