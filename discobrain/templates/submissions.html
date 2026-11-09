@@ -95,7 +95,7 @@
             </div>
             <div>
               <span class="badge" style="background-color: #eff6ff; border: 1px solid #bfdbfe; color: #1d4ed8;">
-                Ready to Seed
+                Ready to Submit
               </span>
             </div>
           </div>
@@ -114,7 +114,7 @@
             {# Manual mark-submitted toggle #}
             <form action="{{ url_for('mark_submitted', batch_id=batch.id, item_id=item.id) }}" method="POST" style="margin: 0;">
               <button type="submit" class="btn btn-secondary btn-sm" title="Mark as submitted if completed manually">
-                Mark as Seeded
+                Mark as Submitted
               </button>
             </form>
           </div>
@@ -129,10 +129,10 @@
 {% if dropped_items %}
   <div class="card" style="border-left: 4px solid #f59e0b;">
     <h3 class="card-title" style="color: #92400e;">
-      Dropped Releases (Already in MusicBrainz)
+      Already in MusicBrainz
     </h3>
     <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 1rem;">
-      These releases already exist in MusicBrainz or your local cache and have been excluded from the submission queue:
+      These releases already exist in MusicBrainz and have been excluded from the submission queue:
     </p>
     <ul style="list-style: none;">
       {% for item in dropped_items %}

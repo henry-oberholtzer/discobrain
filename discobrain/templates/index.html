@@ -6,13 +6,13 @@
 <div class="card">
   <h2 class="card-title">Batch Import Releases to MusicBrainz</h2>
   <p style="margin-bottom: 1.25rem; color: var(--text-muted);">
-    Paste a list of Discogs release URLs or IDs below, or upload a text file. Discobrain will pre-filter existing MusicBrainz entries, convert the metadata with intrinsic normalization, and guide you through the submission process.
+    Paste a list of Discogs release URLs or IDs belowl, each on a new line, or upload a text file.
   </p>
 
   {% if not g.user or not g.user.authenticated %}
     <div class="alert alert-warning" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem;">
       <div>
-        <strong>Tip:</strong> You are currently unauthenticated (25 req/min). Authenticating with Discogs increases your speed to 60 req/min.
+        <strong>Tip:</strong> You are currently unauthenticated, consider authenticating to improve performance.
       </div>
       <a href="{{ url_for('discogs.connect') }}" class="btn btn-sm btn-secondary">Connect with Discogs</a>
     </div>
@@ -34,7 +34,7 @@
 
     <div style="margin-bottom: 1.5rem;">
       <label for="file" style="display: block; font-weight: 600; margin-bottom: 0.5rem;">
-        Or upload a text file (.txt):
+        Upload a text file (.txt):
       </label>
       <input
         type="file"
@@ -52,14 +52,5 @@
       Parse & Begin Submissions
     </button>
   </form>
-</div>
-
-<div class="card" style="background-color: transparent; border: 1px dashed var(--border); box-shadow: none;">
-  <h3 style="font-size: 1rem; font-weight: 600; margin-bottom: 0.5rem;">How Discobrain Works</h3>
-  <ol style="margin-left: 1.25rem; font-size: 0.9rem; color: var(--text-muted); line-height: 1.6;">
-    <li><strong>Deduplication:</strong> Discogs IDs are queried against MusicBrainz and the local cache; releases that already exist are automatically dropped.</li>
-    <li><strong>Intrinsic Normalization:</strong> Data is structured into MusicBrainz-compliant entities with automatic title-casing, ISO country mapping, and language/script deduction.</li>
-    <li><strong>Guided Seeding:</strong> Submissions can be seeded individually or sequentially using MusicBrainz's release editor seeding protocol.</li>
-  </ol>
 </div>
 {% endblock %}
