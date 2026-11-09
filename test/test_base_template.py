@@ -23,6 +23,19 @@ def test_user_loader_authenticated_session(client):
         assert g.user["username"] == "Alice"
 
 
+def test_user_loader_authenticated_session_user_token(client):
+    with client.session_transaction() as sess:
+        sess["discogs_user_token"] = "mock_user_token_abc"
+        sess["discogs_username"] = "Bob"
+
+    with client:
+        client.get("/")
+        from flask import g
+        assert g.user["authenticated"] is True
+        assert g.user["rate_limit"] == 60
+        assert g.user["username"] == "Bob"
+
+
 def test_user_loader_authenticated_env(client, monkeypatch):
     monkeypatch.setenv("DISCOGS_USER_TOKEN", "mock_user_token")
     with client:

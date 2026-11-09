@@ -55,6 +55,10 @@ def load_user():
         user["authenticated"] = True
         user["username"] = session.get("discogs_username") or "Discogs User"
         user["rate_limit"] = 60
+    elif session.get("discogs_user_token"):
+        user["authenticated"] = True
+        user["username"] = session.get("discogs_username") or "Token User"
+        user["rate_limit"] = 60
     elif os.getenv("DISCOGS_USER_TOKEN") or os.getenv("DISCOGS_API_KEY"):
         user["authenticated"] = True
         user["username"] = "API Token User"
