@@ -93,7 +93,7 @@ This is completely lightweight, uses the Python standard library `sqlite3`, requ
 
 We will create a new branch: `feature/flask-web-ui` and work incrementally with focused commits:
 
-### Feature 1: Test Harness & Foundation
+### Feature 1: Test Harness & Foundation [COMPLETED - commit `77b32a9`]
 - **Goal:** Fix test configuration, configure default secret key for dev/test, and set up base Jinja layout.
 - **Changes:**
   - Add `app.secret_key = os.getenv("DISCOBRAIN_SECRET_KEY", "dev-secret-key-change-me")` to ensure sessions work in dev and tests without requiring manual `.env` exports.
@@ -102,7 +102,7 @@ We will create a new branch: `feature/flask-web-ui` and work incrementally with 
 - **Tests:** Verify existing tests pass (`test_auth.py`), and test base layout rendering.
 - **Commit Message:** `feat(web): configure app secret key fallback, test harness, and base template`
 
-### Feature 2: Batch SQLite Storage & Manager
+### Feature 2: Batch SQLite Storage & Manager [COMPLETED - commit `30d1947`]
 - **Goal:** Implement persistent batch storage for queueing releases and tracking submission progress.
 - **Changes:**
   - Create `discobrain/batch_store.py` (`BatchStore` class) with SQLite tables (`batches`, `batch_items`).
@@ -110,7 +110,7 @@ We will create a new branch: `feature/flask-web-ui` and work incrementally with 
 - **Tests:** Add `test/test_batch_store.py` testing batch lifecycle, item status transitions, and serialization.
 - **Commit Message:** `feat(batch): add SQLite batch store for tracking import submissions`
 
-### Feature 3: Ingestion Controller & Home Page
+### Feature 3: Ingestion Controller & Home Page [COMPLETED - commit `9046e01`]
 - **Goal:** Ingest URLs/IDs via textarea or `.txt` file, extract IDs, and validate input.
 - **Changes:**
   - Create `discobrain/templates/index.html` with:
@@ -124,7 +124,7 @@ We will create a new branch: `feature/flask-web-ui` and work incrementally with 
 - **Tests:** Add `test/test_webapp.py` testing `GET /`, `POST /parse` with raw IDs, URLs, uploaded text files, and empty/invalid input errors.
 - **Commit Message:** `feat(web): implement home page and input ingestion for URLs and text files`
 
-### Feature 4: Deduplication & Conversion Pipeline
+### Feature 4: Deduplication & Conversion Pipeline [COMPLETED - commit `af49672`]
 - **Goal:** Filter out releases already present in MusicBrainz and convert unseeded releases.
 - **Changes:**
   - In `discobrain/__init__.py` (or dedicated service `discobrain/pipeline.py`):
@@ -136,7 +136,7 @@ We will create a new branch: `feature/flask-web-ui` and work incrementally with 
 - **Tests:** Add tests in `test/test_webapp.py` with mocked Discogs API and `MusicBrainzLookUp` verifying pre-filter dropping and successful conversion.
 - **Commit Message:** `feat(pipeline): integrate deduplication pre-filtering and release conversion`
 
-### Feature 5: Submission View & MusicBrainz Seeding Forms
+### Feature 5: Submission View & MusicBrainz Seeding Forms [COMPLETED - commit `cdcb369`]
 - **Goal:** Present the submission dashboard with one-click MusicBrainz release editor forms.
 - **Changes:**
   - Create `discobrain/templates/submissions.html`:
@@ -148,7 +148,11 @@ We will create a new branch: `feature/flask-web-ui` and work incrementally with 
 - **Tests:** Test `GET /submissions/<batch_id>` verifying form inputs, hidden field rendering, and dropped release links.
 - **Commit Message:** `feat(web): add submission view with MusicBrainz seeding forms and dropped links`
 
-### Feature 6: Return Callback, Entity Cache Update & Dynamic Re-evaluation
+### Bugfix: Enqueue Propagation in get_mbids [COMPLETED - commit `b85eb75`]
+- **Goal:** Clear unmapped Discogs IDs to `None` and propagate `enqueue` flag through recursive entity traversals.
+- **Commit Message:** `fix(lookup): propagate enqueue flag in get_mbids and safely clear unmapped Discogs IDs`
+
+### Feature 6: Return Callback, Entity Cache Update & Dynamic Re-evaluation [COMPLETED - commit `d80506b`]
 - **Goal:** Handle MusicBrainz submission return callbacks and dynamically refresh subsequent batch releases.
 - **Changes:**
   - Add `redirect_uri` to seeded forms pointing to `/callback?batch_id=...&discogs_id=...`.
@@ -160,7 +164,7 @@ We will create a new branch: `feature/flask-web-ui` and work incrementally with 
 - **Tests:** Test `/callback` endpoint with query parameters, verifying cache update, status update, and entity re-resolution.
 - **Commit Message:** `feat(web): handle MusicBrainz return callback and dynamic entity re-evaluation`
 
-### Feature 7: Automated Sequential Submission Mode & Flow Completion
+### Feature 7: Automated Sequential Submission Mode & Flow Completion [COMPLETED - commit `8d7f2d3`]
 - **Goal:** Implement the "Submit All Sequentially" flow that steps through each release automatically.
 - **Changes:**
   - Add "Submit All Sequentially" button on submission view.
