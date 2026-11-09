@@ -3,7 +3,11 @@ from pathlib import Path
 from unittest.mock import MagicMock
 
 from discobrain.batch_store import BatchItemStatus, BatchStore
-from discobrain.pipeline import build_converter, process_batch
+from discobrain.pipeline import (
+    build_converter,
+    process_batch,
+    reevaluate_pending_items,
+)
 from discobrain.release_converter.converter import ReleaseConverter
 from discobrain.release_converter.discogs import DiscogsRelease
 from discobrain.release_converter.musicbrainz import MusicBrainzLookUp
@@ -122,3 +126,59 @@ def test_process_batch_handles_conversion_errors(tmp_path):
     assert item is not None
     assert item.status == BatchItemStatus.ERROR.value
     assert "Discogs 404 Not Found" in (item.error_message or "")
+
+
+def test_reevaluate_pending_items_populates_newly_cached_mbids(tmp_path):
+    db_file = tmp_path / "test_pipeline.db"
+    store = BatchStore(db_file)
+    lookup = MusicBrainzLookUp("TestAgent/1.0", db_file=db_file)
+    lookup.get_url_resources = MagicMock(return_value=[])
+
+    batch_id = store.create_batch()
+    item_id = store.add_item(batch_id, 765433)
+
+    fixture_data = load_fixture(765433)
+    converter = ReleaseConverter(lookup=lookup, auto_env=False)
+    converter._discogs_release_endpoint = MagicMock(return_value=fixture_data)
+
+    # Initial batch processing
+    process_batch(
+        batch_id=batch_id,
+        batch_store=store,
+        lookup=lookup,
+        converter=converter,
+        base_url="http://localhost:5000",
+    )
+
+    item_before = store.get_item(item_id)
+    assert item_before is not None
+    assert item_before.payload is not None
+    # Noisia's artist mbid was not yet in cache, so it should not be in the payload
+    assert "artist_credit.names.0.mbid" not in item_before.payload
+    assert item_before.raw_data is not None
+
+    # Now simulate finding or caching Noisia's MusicBrainz ID
+    noisia_artist_url = "https://www.discogs.com/artist/100457"
+    noisia_mbid = "b8a82cf9-5415-46ee-aa54-ee054174df87"
+    lookup.store(noisia_artist_url, noisia_mbid, relationship="artist")
+
+    # Reset endpoint mock to ensure re-evaluation uses raw_data without refetching from Discogs
+    converter._discogs_release_endpoint.reset_mock()
+
+    # Run re-evaluation
+    updated_items = reevaluate_pending_items(
+        batch_id=batch_id,
+        batch_store=store,
+        lookup=lookup,
+        converter=converter,
+        base_url="http://localhost:5000",
+    )
+
+    assert len(updated_items) == 1
+    item_after = store.get_item(item_id)
+    assert item_after is not None
+    assert item_after.payload is not None
+    assert item_after.payload.get("artist_credit.names.0.mbid") == noisia_mbid
+
+    # Verify Discogs network endpoint was not called during re-evaluation (raw_data was used)
+    converter._discogs_release_endpoint.assert_not_called()

@@ -14,9 +14,14 @@ from flask import (
 )
 
 from . import auth
-from .batch_store import BatchItemStatus, BatchStore
+from .batch_store import BatchItemRecord, BatchItemStatus, BatchStatus, BatchStore
 from .parser import parse_discogs_ids
-from .pipeline import build_converter, get_musicbrainz_lookup, process_batch
+from .pipeline import (
+    build_converter,
+    get_musicbrainz_lookup,
+    process_batch,
+    reevaluate_pending_items,
+)
 
 load_dotenv()
 
@@ -131,7 +136,83 @@ def submissions_next(batch_id: str):
 
     next_item = store.get_next_pending_item(batch_id)
     if not next_item:
+        store.update_batch_status(batch_id, BatchStatus.COMPLETED.value)
         flash("All releases in this batch have been submitted!", "success")
         return redirect(url_for("submissions_view", batch_id=batch_id))
 
+    mode = request.args.get("mode")
+    if mode == "sequential":
+        payload = dict(next_item.payload)
+        if "redirect_uri" in payload and "mode=sequential" not in payload["redirect_uri"]:
+            sep = "&" if "?" in payload["redirect_uri"] else "?"
+            payload["redirect_uri"] = f"{payload['redirect_uri']}{sep}mode=sequential"
+            next_item.payload = payload
+
     return render_template("seed_redirect.html", item=next_item)
+
+
+@app.route("/callback", methods=["GET"])
+def callback():
+    batch_id = request.args.get("batch_id")
+    discogs_id_raw = request.args.get("discogs_id")
+    release_mbid = request.args.get("release_mbid")
+    mode = request.args.get("mode")
+
+    if not batch_id:
+        flash("Missing batch ID in callback parameter.", "warning")
+        return redirect(url_for("index"))
+
+    store = get_batch_store()
+    batch = store.get_batch(batch_id)
+    if not batch:
+        flash(f"Batch '{batch_id}' not found.", "error")
+        return redirect(url_for("index"))
+
+    discogs_id: int | None = None
+    if discogs_id_raw:
+        try:
+            discogs_id = int(discogs_id_raw)
+        except ValueError:
+            discogs_id = None
+
+    db_path = app.config.get("DISCOBRAIN_DB")
+    lookup = get_musicbrainz_lookup(db_path)
+
+    item: BatchItemRecord | None = None
+    if discogs_id is not None:
+        item = store.get_item_by_discogs_id(batch_id, discogs_id)
+
+    if release_mbid:
+        if discogs_id is not None:
+            discogs_url = f"https://www.discogs.com/release/{discogs_id}"
+            lookup.store(discogs_url, release_mbid, relationship="release")
+
+        if item:
+            store.update_item_status(item.id, BatchItemStatus.SUBMITTED.value, mbid=release_mbid)
+
+    # Dynamic re-evaluation of remaining pending releases in this batch
+    converter = build_converter(lookup=lookup, session_data=dict(session))
+    base_url = request.host_url
+    reevaluate_pending_items(
+        batch_id=batch_id,
+        batch_store=store,
+        lookup=lookup,
+        converter=converter,
+        base_url=base_url,
+    )
+
+    if mode == "sequential":
+        next_item = store.get_next_pending_item(batch_id)
+        if next_item:
+            return redirect(url_for("submissions_next", batch_id=batch_id, mode="sequential"))
+        store.update_batch_status(batch_id, BatchStatus.COMPLETED.value)
+        flash("All releases in this batch have been successfully submitted!", "success")
+        return redirect(url_for("submissions_view", batch_id=batch_id))
+
+    return render_template(
+        "callback_success.html",
+        batch=batch,
+        item=item,
+        discogs_id=discogs_id,
+        release_mbid=release_mbid,
+    )

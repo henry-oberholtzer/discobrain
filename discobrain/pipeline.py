@@ -1,13 +1,14 @@
 import os
 import sqlite3
-from typing import Any
+from typing import Any, cast
 
 import requests
 
-from .batch_store import BatchItemStatus, BatchRecord, BatchStore
+from .batch_store import BatchItemRecord, BatchItemStatus, BatchRecord, BatchStore
 from .release_converter.constants import USER_AGENT
 from .release_converter.converter import ReleaseConverter
-from .release_converter.musicbrainz import MusicBrainzLookUp
+from .release_converter.discogs import DiscogsRelease
+from .release_converter.musicbrainz import MBRelease, MusicBrainzLookUp
 
 
 def get_musicbrainz_lookup(db_file: str | None = None) -> MusicBrainzLookUp:
@@ -31,6 +32,24 @@ def build_converter(
         oauth_token_secret=oauth_token_secret,
         user_token=user_token,
     )
+
+
+def _extract_item_summary(mb_release: MBRelease) -> tuple[str | None, str | None, int | None]:
+    artist_name = None
+    if mb_release.artist_credit and mb_release.artist_credit.names:
+        artist_name = "".join(
+            [n.name + (n.join_phrase or "") for n in mb_release.artist_credit.names if n.name]
+        )
+
+    medium_format = None
+    if mb_release.mediums and len(mb_release.mediums) and mb_release.mediums[0].format:
+        medium_format = mb_release.mediums[0].format
+
+    release_year = None
+    if mb_release.events and len(mb_release.events) and mb_release.events[0].date:
+        release_year = mb_release.events[0].date.year
+
+    return artist_name, medium_format, release_year
 
 
 def process_batch(
@@ -65,28 +84,16 @@ def process_batch(
     remaining_items = batch_store.get_items(batch_id, status=BatchItemStatus.PENDING.value)
     for item in remaining_items:
         try:
-            mb_release = converter.discogs(item.discogs_id)
-            if isinstance(mb_release, list):
-                mb_release = mb_release[0]
+            raw_release = converter._discogs_release_endpoint(item.discogs_id)
+            mb_release = converter._mb_from_discogs_release(raw_release)
 
             if base_url:
                 mb_release.redirect_uri = (
                     f"{base_url.rstrip('/')}/callback?batch_id={batch_id}&discogs_id={item.discogs_id}"
                 )
 
-            artist_name = None
-            if mb_release.artist_credit and mb_release.artist_credit.names:
-                artist_name = "".join(
-                    [n.name + (n.join_phrase or "") for n in mb_release.artist_credit.names if n.name]
-                )
-
-            medium_format = None
-            if mb_release.mediums and len(mb_release.mediums) and mb_release.mediums[0].format:
-                medium_format = mb_release.mediums[0].format
-
-            release_year = None
-            if mb_release.events and len(mb_release.events) and mb_release.events[0].date:
-                release_year = mb_release.events[0].date.year
+            converter.run_lookup(mb_release)
+            artist_name, medium_format, release_year = _extract_item_summary(mb_release)
 
             # Relies on intrinsic normalization in MBRelease
             payload = mb_release.flatten()
@@ -98,6 +105,7 @@ def process_batch(
                 format=medium_format,
                 year=release_year,
                 payload=payload,
+                raw_data=raw_release,
             )
         except (requests.RequestException, sqlite3.Error, ValueError, KeyError, RuntimeError) as exc:
             batch_store.update_item_status(
@@ -107,3 +115,58 @@ def process_batch(
             )
 
     return batch_store.get_batch(batch_id)
+
+
+def reevaluate_pending_items(
+    batch_id: str,
+    batch_store: BatchStore,
+    lookup: MusicBrainzLookUp,
+    converter: ReleaseConverter,
+    base_url: str = "",
+) -> list[BatchItemRecord]:
+    pending_items = batch_store.get_items(batch_id, status=BatchItemStatus.PENDING.value)
+    if not pending_items:
+        return []
+
+    parsed: list[tuple[BatchItemRecord, MBRelease, DiscogsRelease]] = []
+    for item in pending_items:
+        try:
+            if item.raw_data:
+                raw_release = cast(DiscogsRelease, item.raw_data)
+            else:
+                raw_release = converter._discogs_release_endpoint(item.discogs_id)
+
+            mb_release = converter._mb_from_discogs_release(raw_release)
+            if base_url:
+                mb_release.redirect_uri = (
+                    f"{base_url.rstrip('/')}/callback?batch_id={batch_id}&discogs_id={item.discogs_id}"
+                )
+            parsed.append((item, mb_release, raw_release))
+        except (requests.RequestException, sqlite3.Error, ValueError, KeyError, RuntimeError) as exc:
+            print(f"Warning: Failed to prepare release {item.discogs_id} for re-evaluation: {exc}")
+
+    if not parsed:
+        return pending_items
+
+    try:
+        converter.run_lookup([mb for _, mb, _ in parsed])
+    except (requests.RequestException, sqlite3.Error, ValueError, KeyError, RuntimeError) as exc:
+        print(f"Warning: Lookup error during re-evaluation: {exc}")
+
+    for item, mb_release, raw_release in parsed:
+        try:
+            artist_name, medium_format, release_year = _extract_item_summary(mb_release)
+            payload = mb_release.flatten()
+            batch_store.update_item_details(
+                item.id,
+                title=mb_release.name,
+                artist=artist_name,
+                format=medium_format,
+                year=release_year,
+                payload=payload,
+                raw_data=raw_release,
+            )
+        except (ValueError, KeyError, RuntimeError) as exc:
+            print(f"Warning: Failed to update re-evaluated release {item.discogs_id}: {exc}")
+
+    return batch_store.get_items(batch_id, status=BatchItemStatus.PENDING.value)

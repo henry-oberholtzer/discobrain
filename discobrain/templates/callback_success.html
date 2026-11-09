@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+
+{% block title %}Release Seeded Successfully{% endblock %}
+
+{% block content %}
+<div class="card" style="text-align: center; padding: 2.5rem 1.5rem; max-width: 650px; margin: 2rem auto;">
+  {% if release_mbid %}
+    <div style="width: 56px; height: 56px; border-radius: 50%; background: #dcfce7; color: #166534; display: flex; align-items: center; justify-content: center; font-size: 2rem; margin: 0 auto 1.25rem;">
+      ✓
+    </div>
+    <h2 style="font-size: 1.5rem; font-weight: 700; margin-bottom: 0.5rem; color: #166534;">
+      Release Successfully Seeded!
+    </h2>
+    <p style="color: var(--text-muted); margin-bottom: 1.5rem;">
+      {% if item and item.title %}
+        <strong>{{ item.title }}</strong>{% if item.artist %} by {{ item.artist }}{% endif %}
+      {% elif discogs_id %}
+        Discogs Release #{{ discogs_id }}
+      {% endif %}
+    </p>
+
+    <div style="background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 1rem; margin-bottom: 1.5rem; word-break: break-all;">
+      <div style="font-size: 0.8rem; text-transform: uppercase; color: var(--text-muted); margin-bottom: 0.25rem;">
+        MusicBrainz Identifier (MBID)
+      </div>
+      <div style="font-family: monospace; font-size: 1.05rem; font-weight: 600;">
+        {{ release_mbid }}
+      </div>
+      <div style="margin-top: 0.75rem;">
+        <a href="https://musicbrainz.org/release/{{ release_mbid }}" target="_blank" rel="noopener" class="btn btn-sm btn-secondary">
+          View on MusicBrainz ↗
+        </a>
+      </div>
+    </div>
+  {% else %}
+    <h2 style="font-size: 1.5rem; font-weight: 700; margin-bottom: 0.5rem;">
+      Returned from MusicBrainz
+    </h2>
+    <p style="color: var(--text-muted); margin-bottom: 1.5rem;">
+      No release MBID was returned in the callback. If you completed seeding manually, you can mark the release as seeded on the dashboard.
+    </p>
+  {% endif %}
+
+  <div style="display: flex; gap: 0.75rem; justify-content: center; flex-wrap: wrap;">
+    <a href="{{ url_for('submissions_view', batch_id=batch.id) }}" class="btn btn-primary">
+      Return to Batch Dashboard
+    </a>
+    <a href="{{ url_for('index') }}" class="btn btn-secondary">
+      Home
+    </a>
+  </div>
+
+  <p style="margin-top: 1.5rem; font-size: 0.85rem; color: var(--text-muted);">
+    You can safely close this browser tab if you opened it from the main dashboard.
+  </p>
+</div>
+{% endblock %}

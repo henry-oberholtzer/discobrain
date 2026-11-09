@@ -1,6 +1,7 @@
 import json
 import sqlite3
 import uuid
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from enum import StrEnum
@@ -45,6 +46,7 @@ class BatchItemRecord:
     format: str | None = None
     year: int | None = None
     payload: dict[str, Any] = field(default_factory=dict)
+    raw_data: dict[str, Any] | None = None
     error_message: str | None = None
     created_at: str = ""
 
@@ -86,12 +88,17 @@ class BatchStore:
                     format TEXT,
                     year INTEGER,
                     payload TEXT,
+                    raw_data TEXT,
                     error_message TEXT,
                     created_at TEXT NOT NULL,
                     FOREIGN KEY(batch_id) REFERENCES batches(id) ON DELETE CASCADE
                 );
                 """
             )
+            try:
+                self._conn.execute("ALTER TABLE batch_items ADD COLUMN raw_data TEXT;")
+            except sqlite3.OperationalError:
+                pass
             self._conn.execute(
                 "CREATE INDEX IF NOT EXISTS idx_batch_items_batch_id ON batch_items(batch_id);"
             )
@@ -120,17 +127,19 @@ class BatchStore:
         artist: str | None = None,
         format: str | None = None,
         year: int | None = None,
-        payload: dict[str, Any] | None = None,
+        payload: Mapping[str, Any] | None = None,
+        raw_data: Mapping[str, Any] | None = None,
         error_message: str | None = None,
     ) -> int:
         now = self._now_iso()
         payload_json = json.dumps(payload) if payload is not None else None
+        raw_data_json = json.dumps(raw_data) if raw_data is not None else None
         with self._conn:
             cursor = self._conn.execute(
                 """
                 INSERT INTO batch_items (
-                    batch_id, discogs_id, status, mbid, title, artist, format, year, payload, error_message, created_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+                    batch_id, discogs_id, status, mbid, title, artist, format, year, payload, raw_data, error_message, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
                 """,
                 (
                     batch_id,
@@ -142,6 +151,7 @@ class BatchStore:
                     format,
                     year,
                     payload_json,
+                    raw_data_json,
                     error_message,
                     now,
                 ),
@@ -185,6 +195,12 @@ class BatchStore:
 
     def _row_to_item(self, row: sqlite3.Row) -> BatchItemRecord:
         payload_data = json.loads(row["payload"]) if row["payload"] else {}
+        row_keys = set(row.keys())
+        raw_data = (
+            json.loads(row["raw_data"])
+            if "raw_data" in row_keys and row["raw_data"]
+            else None
+        )
         return BatchItemRecord(
             id=row["id"],
             batch_id=row["batch_id"],
@@ -196,6 +212,7 @@ class BatchStore:
             format=row["format"],
             year=row["year"],
             payload=payload_data,
+            raw_data=raw_data,
             error_message=row["error_message"],
             created_at=row["created_at"],
         )
@@ -264,7 +281,7 @@ class BatchStore:
                     (status, item_id),
                 )
 
-    def update_item_payload(self, item_id: int, payload: dict[str, Any]) -> None:
+    def update_item_payload(self, item_id: int, payload: Mapping[str, Any]) -> None:
         payload_json = json.dumps(payload)
         with self._conn:
             self._conn.execute(
@@ -280,9 +297,11 @@ class BatchStore:
         artist: str | None = None,
         format: str | None = None,
         year: int | None = None,
-        payload: dict[str, Any] | None = None,
+        payload: Mapping[str, Any] | None = None,
+        raw_data: Mapping[str, Any] | None = None,
     ) -> None:
         payload_json = json.dumps(payload) if payload is not None else None
+        raw_data_json = json.dumps(raw_data) if raw_data is not None else None
         with self._conn:
             self._conn.execute(
                 """
@@ -291,10 +310,11 @@ class BatchStore:
                     artist = coalesce(?, artist),
                     format = coalesce(?, format),
                     year = coalesce(?, year),
-                    payload = coalesce(?, payload)
+                    payload = coalesce(?, payload),
+                    raw_data = coalesce(?, raw_data)
                 WHERE id = ?;
                 """,
-                (title, artist, format, year, payload_json, item_id),
+                (title, artist, format, year, payload_json, raw_data_json, item_id),
             )
 
     def update_batch_status(self, batch_id: str, status: str) -> None:

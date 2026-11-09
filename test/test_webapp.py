@@ -2,7 +2,8 @@ import io
 from unittest.mock import patch
 
 from discobrain import get_batch_store
-from discobrain.batch_store import BatchItemStatus
+from discobrain.batch_store import BatchItemStatus, BatchStatus
+from discobrain.pipeline import get_musicbrainz_lookup
 
 
 def test_index_page_renders(client):
@@ -196,3 +197,105 @@ def test_submissions_next_empty_redirects_to_batch(client):
     assert resp.status_code == 200
     html = resp.data.decode("utf-8")
     assert "All releases in this batch have been submitted!" in html
+
+
+def test_submissions_next_sequential_mode_appends_mode(client):
+    store = get_batch_store()
+    batch_id = store.create_batch()
+    store.add_item(
+        batch_id,
+        13954,
+        title="Through The Eyes Of A Scorpion",
+        payload={
+            "name": "Through The Eyes Of A Scorpion",
+            "redirect_uri": f"http://localhost:5000/callback?batch_id={batch_id}&discogs_id=13954",
+        },
+    )
+
+    resp = client.get(f"/submissions/{batch_id}/next?mode=sequential")
+    assert resp.status_code == 200
+    html = resp.data.decode("utf-8")
+    assert f"redirect_uri&quot; value=&quot;http://localhost:5000/callback?batch_id={batch_id}&amp;discogs_id=13954&amp;mode=sequential&quot;" in html or f"redirect_uri\" value=\"http://localhost:5000/callback?batch_id={batch_id}&discogs_id=13954&mode=sequential\"" in html or "mode=sequential" in html
+
+
+def test_callback_standalone_success(client, app):
+    store = get_batch_store()
+    batch_id = store.create_batch()
+    item_id = store.add_item(batch_id, 13954, title="Through The Eyes Of A Scorpion")
+
+    resp = client.get(
+        f"/callback?batch_id={batch_id}&discogs_id=13954&release_mbid=newly-seeded-mbid-789"
+    )
+    assert resp.status_code == 200
+    html = resp.data.decode("utf-8")
+    assert "Release Successfully Seeded!" in html
+    assert "newly-seeded-mbid-789" in html
+    assert "Through The Eyes Of A Scorpion" in html
+
+    # Verify batch item status
+    item = store.get_item(item_id)
+    assert item is not None
+    assert item.status == BatchItemStatus.SUBMITTED.value
+    assert item.mbid == "newly-seeded-mbid-789"
+
+    # Verify MusicBrainzLookUp SQLite cache
+    db_path = app.config.get("DISCOBRAIN_DB")
+    lookup = get_musicbrainz_lookup(db_path)
+    assert (
+        lookup.get_by_url("https://www.discogs.com/release/13954")
+        == "newly-seeded-mbid-789"
+    )
+
+
+def test_callback_sequential_mode_advances_to_next(client):
+    store = get_batch_store()
+    batch_id = store.create_batch()
+    item1_id = store.add_item(batch_id, 13954, title="Release 1")
+    item2_id = store.add_item(batch_id, 38348, title="Release 2")
+
+    resp = client.get(
+        f"/callback?batch_id={batch_id}&discogs_id=13954&release_mbid=mbid-rel-1&mode=sequential"
+    )
+    assert resp.status_code == 302
+    assert resp.headers["Location"].endswith(
+        f"/submissions/{batch_id}/next?mode=sequential"
+    )
+
+    item1 = store.get_item(item1_id)
+    assert item1 is not None
+    assert item1.status == BatchItemStatus.SUBMITTED.value
+    assert item1.mbid == "mbid-rel-1"
+
+    item2 = store.get_item(item2_id)
+    assert item2 is not None
+    assert item2.status == BatchItemStatus.PENDING.value
+
+
+def test_callback_sequential_mode_completes_batch(client):
+    store = get_batch_store()
+    batch_id = store.create_batch()
+    store.add_item(batch_id, 13954, title="Last Release")
+
+    resp = client.get(
+        f"/callback?batch_id={batch_id}&discogs_id=13954&release_mbid=mbid-final&mode=sequential",
+        follow_redirects=True,
+    )
+    assert resp.status_code == 200
+    html = resp.data.decode("utf-8")
+    assert "All releases in this batch have been successfully submitted!" in html
+
+    batch = store.get_batch(batch_id)
+    assert batch is not None
+    assert batch.status == BatchStatus.COMPLETED.value
+
+
+def test_callback_invalid_or_missing_parameters(client):
+    resp = client.get("/callback", follow_redirects=True)
+    assert resp.status_code == 200
+    assert "Missing batch ID in callback parameter." in resp.data.decode("utf-8")
+
+    resp2 = client.get("/callback?batch_id=nonexistent-id", follow_redirects=True)
+    assert resp2.status_code == 200
+    assert "Batch &#39;nonexistent-id&#39; not found." in resp2.data.decode(
+        "utf-8"
+    ) or "Batch 'nonexistent-id' not found." in resp2.data.decode("utf-8")

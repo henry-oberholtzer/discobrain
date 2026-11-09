@@ -134,6 +134,30 @@ def test_update_batch_status():
     assert batch.status == BatchStatus.COMPLETED.value
 
 
+def test_add_and_update_raw_data():
+    store = BatchStore()
+    batch_id = store.create_batch()
+    item_id = store.add_item(
+        batch_id,
+        discogs_id=301,
+        title="Initial",
+        raw_data={"id": 301, "title": "Raw Title"},
+    )
+    item = store.get_item(item_id)
+    assert item is not None
+    assert item.raw_data == {"id": 301, "title": "Raw Title"}
+
+    store.update_item_details(
+        item_id,
+        title="Updated Title",
+        raw_data={"id": 301, "title": "Updated Raw Title", "formats": []},
+    )
+    updated = store.get_item(item_id)
+    assert updated is not None
+    assert updated.title == "Updated Title"
+    assert updated.raw_data == {"id": 301, "title": "Updated Raw Title", "formats": []}
+
+
 def test_file_backed_persistence():
     with tempfile.TemporaryDirectory() as temp_dir:
         db_file = Path(temp_dir) / "test_batches.db"

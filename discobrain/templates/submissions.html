@@ -47,7 +47,7 @@
           Step through all {{ batch.pending_count }} pending releases sequentially. Each release will automatically open in the MusicBrainz release editor.
         </p>
       </div>
-      <a href="{{ url_for('submissions_next', batch_id=batch.id) }}" class="btn btn-success" style="padding: 0.6rem 1.25rem; font-size: 0.95rem;">
+      <a href="{{ url_for('submissions_next', batch_id=batch.id, mode='sequential') }}" class="btn btn-success" style="padding: 0.6rem 1.25rem; font-size: 0.95rem;">
         ▶ Submit All Sequentially
       </a>
     </div>

@@ -277,6 +277,7 @@ class ReleaseConverter:
         self.oauth_token = oauth_token
         self.oauth_token_secret = oauth_token_secret
         self.auto_env = auto_env
+        self._cache: dict[int, DiscogsRelease] = {}
 
         if auto_env:
             if not self.user_token:
@@ -355,9 +356,13 @@ class ReleaseConverter:
         return int(discogs_url)
 
     def _discogs_release_endpoint(self, release_id: int) -> DiscogsRelease:
+        if release_id in self._cache:
+            return self._cache[release_id]
         response = self.session.get(f"{DISCOGS_ENDPOINT}/releases/{release_id}")
         response.raise_for_status()
-        return cast(DiscogsRelease, response.json())
+        data = cast(DiscogsRelease, response.json())
+        self._cache[release_id] = data
+        return data
 
     def _mb_from_discogs_release(self, d: DiscogsRelease) -> MBRelease:
         mb = MBRelease(name=d['title']) 
