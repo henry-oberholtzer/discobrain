@@ -122,6 +122,9 @@ def mark_submitted(batch_id: str, item_id: int):
     store = get_batch_store()
     mbid = request.form.get("mbid")
     store.update_item_status(item_id, BatchItemStatus.SUBMITTED.value, mbid=mbid)
+    batch = store.get_batch(batch_id)
+    if batch and batch.pending_count == 0:
+        store.update_batch_status(batch_id, BatchStatus.COMPLETED.value)
     flash("Release marked as seeded.", "success")
     return redirect(url_for("submissions_view", batch_id=batch_id))
 
@@ -148,7 +151,7 @@ def submissions_next(batch_id: str):
             payload["redirect_uri"] = f"{payload['redirect_uri']}{sep}mode=sequential"
             next_item.payload = payload
 
-    return render_template("seed_redirect.html", item=next_item)
+    return render_template("seed_redirect.html", item=next_item, batch=batch, mode=mode)
 
 
 @app.route("/callback", methods=["GET"])

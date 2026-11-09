@@ -4,6 +4,12 @@
 
 {% block content %}
 <div class="card" style="text-align: center; padding: 2.5rem 1.5rem; max-width: 650px; margin: 2rem auto;">
+  {% if mode == 'sequential' and batch %}
+    <div style="display: inline-block; padding: 0.35rem 0.75rem; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 9999px; color: #1d4ed8; font-size: 0.85rem; font-weight: 600; margin-bottom: 1.25rem;">
+      Sequential Mode · {{ batch.pending_count }} release{{ 's' if batch.pending_count != 1 else '' }} remaining
+    </div>
+  {% endif %}
+
   <h2 style="font-size: 1.5rem; font-weight: 700; margin-bottom: 0.5rem;">Opening MusicBrainz Release Editor...</h2>
   <p style="color: var(--text-muted); margin-bottom: 1.5rem;">
     Preparing seed data for <strong>{{ item.title or ('Discogs #' ~ item.discogs_id) }}</strong>{% if item.artist %} by {{ item.artist }}{% endif %}.
@@ -16,7 +22,7 @@
 
     <div>
       <button type="submit" class="btn btn-primary" style="padding: 0.75rem 2rem; font-size: 1.05rem;">
-        Proceed to MusicBrainz Release Editor
+        Proceed to MusicBrainz Release Editor →
       </button>
     </div>
     <p style="margin-top: 0.75rem; font-size: 0.85rem; color: var(--text-muted);">

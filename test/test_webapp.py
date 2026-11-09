@@ -299,3 +299,103 @@ def test_callback_invalid_or_missing_parameters(client):
     assert "Batch &#39;nonexistent-id&#39; not found." in resp2.data.decode(
         "utf-8"
     ) or "Batch 'nonexistent-id' not found." in resp2.data.decode("utf-8")
+
+
+def test_end_to_end_sequential_submission_flow(client, app):
+    store = get_batch_store()
+    batch_id = store.create_batch()
+    item1_id = store.add_item(
+        batch_id,
+        13954,
+        title="Through The Eyes Of A Scorpion",
+        artist="DJ Teebee",
+        payload={
+            "name": "Through The Eyes Of A Scorpion",
+            "redirect_uri": f"http://localhost:5000/callback?batch_id={batch_id}&discogs_id=13954",
+        },
+    )
+    item2_id = store.add_item(
+        batch_id,
+        765433,
+        title="End Game",
+        artist="Noisia",
+        payload={
+            "name": "End Game",
+            "redirect_uri": f"http://localhost:5000/callback?batch_id={batch_id}&discogs_id=765433",
+        },
+    )
+
+    # 1. View submissions dashboard
+    resp = client.get(f"/submissions/{batch_id}")
+    assert resp.status_code == 200
+    html = resp.data.decode("utf-8")
+    assert "Submit All Sequentially" in html
+    assert f"/submissions/{batch_id}/next?mode=sequential" in html
+
+    # 2. Trigger sequential mode
+    resp = client.get(f"/submissions/{batch_id}/next?mode=sequential")
+    assert resp.status_code == 200
+    html = resp.data.decode("utf-8")
+    assert "Sequential Mode · 2 releases remaining" in html
+    assert "Through The Eyes Of A Scorpion" in html
+    assert "Proceed to MusicBrainz Release Editor →" in html
+    assert "form.submit();" in html
+    assert "mode=sequential" in html
+
+    # 3. Simulate MusicBrainz callback for release 1
+    resp = client.get(
+        f"/callback?batch_id={batch_id}&discogs_id=13954&release_mbid=mbid-first-111&mode=sequential"
+    )
+    assert resp.status_code == 302
+    assert resp.headers["Location"].endswith(f"/submissions/{batch_id}/next?mode=sequential")
+
+    item1 = store.get_item(item1_id)
+    assert item1 is not None
+    assert item1.status == BatchItemStatus.SUBMITTED.value
+    assert item1.mbid == "mbid-first-111"
+
+    # 4. Step 2 of sequential mode
+    resp = client.get(resp.headers["Location"])
+    assert resp.status_code == 200
+    html = resp.data.decode("utf-8")
+    assert "Sequential Mode · 1 release remaining" in html
+    assert "End Game" in html
+
+    # 5. Simulate MusicBrainz callback for release 2 (completes batch)
+    resp = client.get(
+        f"/callback?batch_id={batch_id}&discogs_id=765433&release_mbid=mbid-second-222&mode=sequential",
+        follow_redirects=True,
+    )
+    assert resp.status_code == 200
+    html = resp.data.decode("utf-8")
+    assert "All releases in this batch have been successfully submitted!" in html
+    assert "Completed" in html
+    assert "https://musicbrainz.org/release/mbid-first-111" in html
+    assert "https://musicbrainz.org/release/mbid-second-222" in html
+
+    batch = store.get_batch(batch_id)
+    assert batch is not None
+    assert batch.status == BatchStatus.COMPLETED.value
+    assert batch.pending_count == 0
+    assert batch.submitted_count == 2
+
+    item2 = store.get_item(item2_id)
+    assert item2 is not None
+    assert item2.status == BatchItemStatus.SUBMITTED.value
+    assert item2.mbid == "mbid-second-222"
+
+
+def test_mark_submitted_completes_batch(client):
+    store = get_batch_store()
+    batch_id = store.create_batch()
+    item_id = store.add_item(batch_id, 13954, title="Single Release")
+
+    client.post(
+        f"/submissions/{batch_id}/items/{item_id}/mark-submitted",
+        data={"mbid": "manual-mbid-123"},
+        follow_redirects=True,
+    )
+    batch = store.get_batch(batch_id)
+    assert batch is not None
+    assert batch.status == BatchStatus.COMPLETED.value
+    assert batch.pending_count == 0
