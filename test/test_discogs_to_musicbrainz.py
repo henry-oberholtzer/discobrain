@@ -1,5 +1,3 @@
-from discobrain.release_converter.discogs import DiscogsLabel
-from discobrain.release_converter.discogs import DiscogsReleaseArtist
 import json
 from pathlib import Path
 from typing import cast
@@ -11,13 +9,18 @@ from discobrain.release_converter import (
     ReleaseConverter,
 )
 from discobrain.release_converter.converter import (
+    build_artist,
+    build_label,
     discogs_strip_disambiguation,
     discogs_tracklist,
     release_disambiguation,
-    build_artist,
-    build_label
 )
-from discobrain.release_converter.discogs import DiscogsFormat, DiscogsRelease
+from discobrain.release_converter.discogs import (
+    DiscogsFormat,
+    DiscogsLabel,
+    DiscogsRelease,
+    DiscogsReleaseArtist,
+)
 from discobrain.release_converter.musicbrainz import (
     MBURL,
     MBArtistCredit,

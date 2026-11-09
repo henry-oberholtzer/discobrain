@@ -1,7 +1,9 @@
 from unittest.mock import MagicMock, patch
 
 
-def test_connect_page_renders_without_consumer_keys(client):
+def test_connect_page_renders_without_consumer_keys(client, monkeypatch):
+    monkeypatch.delenv("DISCOGS_CONSUMER_KEY", raising=False)
+    monkeypatch.delenv("DISCOGS_CONSUMER_SECRET", raising=False)
     resp = client.get("/discogs/")
     assert resp.status_code == 200
     html = resp.data.decode("utf-8")
