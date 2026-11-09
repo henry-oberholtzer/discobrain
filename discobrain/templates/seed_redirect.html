@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+
+{% block title %}Submitting Release #{{ item.discogs_id }}{% endblock %}
+
+{% block content %}
+<div class="card" style="text-align: center; padding: 2.5rem 1.5rem; max-width: 650px; margin: 2rem auto;">
+  <h2 style="font-size: 1.5rem; font-weight: 700; margin-bottom: 0.5rem;">Opening MusicBrainz Release Editor...</h2>
+  <p style="color: var(--text-muted); margin-bottom: 1.5rem;">
+    Preparing seed data for <strong>{{ item.title or ('Discogs #' ~ item.discogs_id) }}</strong>{% if item.artist %} by {{ item.artist }}{% endif %}.
+  </p>
+
+  <form id="seed-form" action="https://musicbrainz.org/release/add" method="POST">
+    {% for key, val in item.payload.items() %}
+      <input type="hidden" name="{{ key }}" value="{{ val }}">
+    {% endfor %}
+
+    <div>
+      <button type="submit" class="btn btn-primary" style="padding: 0.75rem 2rem; font-size: 1.05rem;">
+        Proceed to MusicBrainz Release Editor
+      </button>
+    </div>
+    <p style="margin-top: 0.75rem; font-size: 0.85rem; color: var(--text-muted);">
+      Click the button above if you are not redirected automatically.
+    </p>
+  </form>
+
+  <div style="margin-top: 2rem; border-top: 1px solid var(--border); padding-top: 1rem;">
+    <a href="{{ url_for('submissions_view', batch_id=item.batch_id) }}" class="btn-link">
+      ← Return to Batch Dashboard
+    </a>
+  </div>
+</div>
+
+<script>
+  (function() {
+    var form = document.getElementById('seed-form');
+    if (form) {
+      form.submit();
+    }
+  })();
+</script>
+{% endblock %}

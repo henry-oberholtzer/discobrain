@@ -15,39 +15,123 @@
   </div>
 
   <div style="display: flex; gap: 1rem; margin-bottom: 1.5rem; flex-wrap: wrap;">
-    <div style="padding: 0.75rem 1.25rem; background: var(--bg); border-radius: 6px; border: 1px solid var(--border); text-align: center;">
+    <div style="padding: 0.75rem 1.25rem; background: var(--bg); border-radius: 6px; border: 1px solid var(--border); text-align: center; min-width: 100px;">
       <div style="font-size: 1.5rem; font-weight: 700;">{{ batch.total_items }}</div>
       <div style="font-size: 0.8rem; color: var(--text-muted); text-transform: uppercase;">Total</div>
     </div>
-    <div style="padding: 0.75rem 1.25rem; background: #eff6ff; border-radius: 6px; border: 1px solid #bfdbfe; text-align: center;">
+    <div style="padding: 0.75rem 1.25rem; background: #eff6ff; border-radius: 6px; border: 1px solid #bfdbfe; text-align: center; min-width: 100px;">
       <div style="font-size: 1.5rem; font-weight: 700; color: #1d4ed8;">{{ batch.pending_count }}</div>
       <div style="font-size: 0.8rem; color: #1d4ed8; text-transform: uppercase;">Pending</div>
     </div>
-    <div style="padding: 0.75rem 1.25rem; background: #fef3c7; border-radius: 6px; border: 1px solid #fde68a; text-align: center;">
+    <div style="padding: 0.75rem 1.25rem; background: #fef3c7; border-radius: 6px; border: 1px solid #fde68a; text-align: center; min-width: 100px;">
       <div style="font-size: 1.5rem; font-weight: 700; color: #92400e;">{{ batch.dropped_count }}</div>
       <div style="font-size: 0.8rem; color: #92400e; text-transform: uppercase;">Dropped</div>
     </div>
-    <div style="padding: 0.75rem 1.25rem; background: #dcfce7; border-radius: 6px; border: 1px solid #bbf7d0; text-align: center;">
+    <div style="padding: 0.75rem 1.25rem; background: #dcfce7; border-radius: 6px; border: 1px solid #bbf7d0; text-align: center; min-width: 100px;">
       <div style="font-size: 1.5rem; font-weight: 700; color: #15803d;">{{ batch.submitted_count }}</div>
       <div style="font-size: 0.8rem; color: #15803d; text-transform: uppercase;">Submitted</div>
     </div>
+    {% if batch.error_count > 0 %}
+      <div style="padding: 0.75rem 1.25rem; background: #fee2e2; border-radius: 6px; border: 1px solid #fecaca; text-align: center; min-width: 100px;">
+        <div style="font-size: 1.5rem; font-weight: 700; color: #b91c1c;">{{ batch.error_count }}</div>
+        <div style="font-size: 0.8rem; color: #b91c1c; text-transform: uppercase;">Errors</div>
+      </div>
+    {% endif %}
   </div>
+
+  {% if batch.pending_count > 0 %}
+    <div style="padding: 1rem; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 6px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.75rem;">
+      <div>
+        <strong style="color: #166534; font-size: 1rem;">Automated Submission Workflow:</strong>
+        <p style="color: #166534; font-size: 0.85rem; margin-top: 0.2rem;">
+          Step through all {{ batch.pending_count }} pending releases sequentially. Each release will automatically open in the MusicBrainz release editor.
+        </p>
+      </div>
+      <a href="{{ url_for('submissions_next', batch_id=batch.id) }}" class="btn btn-success" style="padding: 0.6rem 1.25rem; font-size: 0.95rem;">
+        ▶ Submit All Sequentially
+      </a>
+    </div>
+  {% else %}
+    <div class="alert alert-success" style="margin-bottom: 0;">
+      All releases in this batch have been processed or submitted!
+    </div>
+  {% endif %}
 </div>
 
+{# PENDING SUBMISSIONS SECTION #}
+{% set pending_items = items | selectattr("status", "equalto", "pending") | list %}
+{% if pending_items %}
+  <div class="card">
+    <h3 class="card-title" style="display: flex; justify-content: space-between; align-items: center;">
+      <span>Pending Submissions ({{ pending_items | length }})</span>
+      <span style="font-size: 0.8rem; font-weight: normal; color: var(--text-muted);">
+        Submit in individual tabs or use sequential flow above
+      </span>
+    </h3>
+
+    <div style="display: flex; flex-direction: column; gap: 1rem;">
+      {% for item in pending_items %}
+        <div style="border: 1px solid var(--border); border-radius: 6px; padding: 1.25rem; background: #ffffff;">
+          <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 0.75rem;">
+            <div>
+              <div style="font-size: 1.15rem; font-weight: 700;">
+                {{ item.title or ('Discogs Release #' ~ item.discogs_id) }}
+              </div>
+              <div style="color: var(--text-muted); font-size: 0.9rem; margin-top: 0.25rem;">
+                {% if item.artist %}<strong>Artist:</strong> {{ item.artist }} · {% endif %}
+                {% if item.format %}<strong>Format:</strong> {{ item.format }} · {% endif %}
+                {% if item.year %}<strong>Year:</strong> {{ item.year }} · {% endif %}
+                <a href="https://www.discogs.com/release/{{ item.discogs_id }}" target="_blank" rel="noopener" class="btn-link">
+                  Discogs #{{ item.discogs_id }} ↗
+                </a>
+              </div>
+            </div>
+            <div>
+              <span class="badge" style="background-color: #eff6ff; border: 1px solid #bfdbfe; color: #1d4ed8;">
+                Ready to Seed
+              </span>
+            </div>
+          </div>
+
+          <div style="display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap; margin-top: 1rem; border-top: 1px solid var(--border); padding-top: 0.75rem;">
+            {# One-click MusicBrainz Seeding Form #}
+            <form action="https://musicbrainz.org/release/add" method="POST" target="_blank" style="margin: 0;">
+              {% for key, val in item.payload.items() %}
+                <input type="hidden" name="{{ key }}" value="{{ val }}">
+              {% endfor %}
+              <button type="submit" class="btn btn-primary btn-sm">
+                Submit to MusicBrainz ↗
+              </button>
+            </form>
+
+            {# Manual mark-submitted toggle #}
+            <form action="{{ url_for('mark_submitted', batch_id=batch.id, item_id=item.id) }}" method="POST" style="margin: 0;">
+              <button type="submit" class="btn btn-secondary btn-sm" title="Mark as submitted if completed manually">
+                Mark as Seeded
+              </button>
+            </form>
+          </div>
+        </div>
+      {% endfor %}
+    </div>
+  </div>
+{% endif %}
+
+{# DROPPED RELEASES SECTION #}
 {% set dropped_items = items | selectattr("status", "equalto", "dropped") | list %}
 {% if dropped_items %}
   <div class="card" style="border-left: 4px solid #f59e0b;">
     <h3 class="card-title" style="color: #92400e;">
-      Dropped Releases (Already Present in MusicBrainz)
+      Dropped Releases (Already in MusicBrainz)
     </h3>
     <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 1rem;">
-      The following releases were matched against MusicBrainz or the local cache and have been excluded from the submission queue:
+      These releases already exist in MusicBrainz or your local cache and have been excluded from the submission queue:
     </p>
     <ul style="list-style: none;">
       {% for item in dropped_items %}
         <li style="padding: 0.6rem 0; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem;">
           <div>
-            <strong>Discogs Release #{{ item.discogs_id }}</strong>
+            <strong>Discogs #{{ item.discogs_id }}</strong>
             {% if item.title %}
               <span> — {{ item.title }}</span>
             {% endif %}
@@ -70,34 +154,63 @@
   </div>
 {% endif %}
 
-<div class="card">
-  <h3 class="card-title">Pending Submissions</h3>
-  {% set pending_items = items | selectattr("status", "equalto", "pending") | list %}
-  {% if pending_items %}
+{# SUBMITTED RELEASES SECTION #}
+{% set submitted_items = items | selectattr("status", "equalto", "submitted") | list %}
+{% if submitted_items %}
+  <div class="card" style="border-left: 4px solid #10b981;">
+    <h3 class="card-title" style="color: #065f46;">
+      Completed Submissions ({{ submitted_items | length }})
+    </h3>
     <ul style="list-style: none;">
-      {% for item in pending_items %}
-        <li style="padding: 0.75rem 0; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem;">
+      {% for item in submitted_items %}
+        <li style="padding: 0.6rem 0; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem;">
           <div>
-            <strong>Discogs Release #{{ item.discogs_id }}</strong>
+            <strong>Discogs #{{ item.discogs_id }}</strong>
             {% if item.title %}
-              <div style="font-size: 1.05rem; font-weight: 600;">{{ item.title }}</div>
+              <span> — {{ item.title }}</span>
             {% endif %}
-            <div style="color: var(--text-muted); font-size: 0.85rem;">
-              {% if item.artist %}Artist: {{ item.artist }} · {% endif %}
-              {% if item.format %}Format: {{ item.format }} · {% endif %}
-              {% if item.year %}Year: {{ item.year }}{% endif %}
-            </div>
+            {% if item.artist %}
+              <span style="color: var(--text-muted);"> by {{ item.artist }}</span>
+            {% endif %}
           </div>
-          <div>
-            <span class="badge" style="background-color: #eff6ff; border: 1px solid #bfdbfe; color: #1d4ed8;">
-              Ready for Seeding
+          <div style="display: flex; gap: 0.5rem; align-items: center;">
+            <span class="badge" style="background-color: #dcfce7; border: 1px solid #bbf7d0; color: #166534;">
+              ✓ Seeded
             </span>
+            {% if item.mbid %}
+              <a href="https://musicbrainz.org/release/{{ item.mbid }}" target="_blank" rel="noopener" class="btn btn-sm btn-secondary" style="color: #166534;">
+                View on MusicBrainz ↗
+              </a>
+            {% endif %}
           </div>
         </li>
       {% endfor %}
     </ul>
-  {% else %}
-    <p style="color: var(--text-muted);">No pending releases in this batch.</p>
-  {% endif %}
-</div>
+  </div>
+{% endif %}
+
+{# ERROR RELEASES SECTION #}
+{% set error_items = items | selectattr("status", "equalto", "error") | list %}
+{% if error_items %}
+  <div class="card" style="border-left: 4px solid #ef4444;">
+    <h3 class="card-title" style="color: #991b1b;">
+      Conversion Errors ({{ error_items | length }})
+    </h3>
+    <ul style="list-style: none;">
+      {% for item in error_items %}
+        <li style="padding: 0.6rem 0; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem;">
+          <div>
+            <strong>Discogs Release #{{ item.discogs_id }}</strong>
+            <div style="color: var(--danger-text); font-size: 0.85rem; margin-top: 0.25rem;">
+              {{ item.error_message }}
+            </div>
+          </div>
+          <span class="badge" style="background-color: #fee2e2; border: 1px solid #fecaca; color: #991b1b;">
+            Error
+          </span>
+        </li>
+      {% endfor %}
+    </ul>
+  </div>
+{% endif %}
 {% endblock %}

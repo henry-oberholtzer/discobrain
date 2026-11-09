@@ -14,7 +14,7 @@ from flask import (
 )
 
 from . import auth
-from .batch_store import BatchStore
+from .batch_store import BatchItemStatus, BatchStore
 from .parser import parse_discogs_ids
 from .pipeline import build_converter, get_musicbrainz_lookup, process_batch
 
@@ -110,3 +110,28 @@ def submissions_view(batch_id: str):
 
     items = store.get_items(batch_id)
     return render_template("submissions.html", batch=batch, items=items)
+
+
+@app.route("/submissions/<batch_id>/items/<int:item_id>/mark-submitted", methods=["POST"])
+def mark_submitted(batch_id: str, item_id: int):
+    store = get_batch_store()
+    mbid = request.form.get("mbid")
+    store.update_item_status(item_id, BatchItemStatus.SUBMITTED.value, mbid=mbid)
+    flash("Release marked as seeded.", "success")
+    return redirect(url_for("submissions_view", batch_id=batch_id))
+
+
+@app.route("/submissions/<batch_id>/next", methods=["GET"])
+def submissions_next(batch_id: str):
+    store = get_batch_store()
+    batch = store.get_batch(batch_id)
+    if not batch:
+        flash(f"Batch '{batch_id}' not found.", "error")
+        return redirect(url_for("index"))
+
+    next_item = store.get_next_pending_item(batch_id)
+    if not next_item:
+        flash("All releases in this batch have been submitted!", "success")
+        return redirect(url_for("submissions_view", batch_id=batch_id))
+
+    return render_template("seed_redirect.html", item=next_item)

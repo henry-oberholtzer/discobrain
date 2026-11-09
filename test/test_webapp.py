@@ -109,7 +109,7 @@ def test_submissions_view_renders_batch(client):
     assert f"Import Batch: {batch_id[:8]}" in html
     assert "Through The Eyes Of A Scorpion" in html
     assert "DJ Teebee" in html
-    assert "Dropped Releases (Already Present in MusicBrainz)" in html
+    assert "Dropped Releases (Already in MusicBrainz)" in html
     assert "https://musicbrainz.org/release/ceccb90b-59f8-4856-ab15-c980ed653b1d" in html
 
 
@@ -118,3 +118,81 @@ def test_submissions_view_not_found(client):
     assert resp.status_code == 200
     html = resp.data.decode("utf-8")
     assert "Batch &#39;nonexistent-batch-id&#39; not found." in html or "Batch 'nonexistent-batch-id' not found." in html
+
+
+def test_submissions_view_renders_seed_forms(client):
+    store = get_batch_store()
+    batch_id = store.create_batch()
+    store.add_item(
+        batch_id,
+        13954,
+        title="Through The Eyes Of A Scorpion",
+        artist="DJ Teebee",
+        payload={
+            "name": "Through The Eyes Of A Scorpion",
+            "artist_credit.names.0.name": "DJ Teebee",
+            "events.0.date.year": 2001,
+            "redirect_uri": "http://localhost:5000/callback?batch_id=" + batch_id + "&discogs_id=13954",
+        },
+    )
+
+    resp = client.get(f"/submissions/{batch_id}")
+    assert resp.status_code == 200
+    html = resp.data.decode("utf-8")
+    assert 'action="https://musicbrainz.org/release/add"' in html
+    assert 'name="name" value="Through The Eyes Of A Scorpion"' in html
+    assert 'name="artist_credit.names.0.name" value="DJ Teebee"' in html
+    assert 'Submit to MusicBrainz ↗' in html
+    assert 'Mark as Seeded' in html
+
+
+def test_mark_submitted_action(client):
+    store = get_batch_store()
+    batch_id = store.create_batch()
+    item_id = store.add_item(batch_id, 13954, title="Through The Eyes Of A Scorpion")
+
+    resp = client.post(
+        f"/submissions/{batch_id}/items/{item_id}/mark-submitted",
+        data={"mbid": "newly-seeded-mbid-123"},
+        follow_redirects=True,
+    )
+    assert resp.status_code == 200
+    html = resp.data.decode("utf-8")
+    assert "Release marked as seeded." in html
+
+    item = store.get_item(item_id)
+    assert item is not None
+    assert item.status == BatchItemStatus.SUBMITTED.value
+    assert item.mbid == "newly-seeded-mbid-123"
+
+
+def test_submissions_next_renders_seed_redirect(client):
+    store = get_batch_store()
+    batch_id = store.create_batch()
+    store.add_item(
+        batch_id,
+        13954,
+        title="Through The Eyes Of A Scorpion",
+        payload={"name": "Through The Eyes Of A Scorpion"},
+    )
+
+    resp = client.get(f"/submissions/{batch_id}/next")
+    assert resp.status_code == 200
+    html = resp.data.decode("utf-8")
+    assert "Opening MusicBrainz Release Editor..." in html
+    assert 'id="seed-form"' in html
+    assert 'action="https://musicbrainz.org/release/add"' in html
+    assert 'name="name" value="Through The Eyes Of A Scorpion"' in html
+    assert "Proceed to MusicBrainz Release Editor" in html
+    assert "form.submit();" in html
+
+
+def test_submissions_next_empty_redirects_to_batch(client):
+    store = get_batch_store()
+    batch_id = store.create_batch()
+    # No pending items
+
+    resp = client.get(f"/submissions/{batch_id}/next", follow_redirects=True)
+    assert resp.status_code == 200
+    html = resp.data.decode("utf-8")
+    assert "All releases in this batch have been submitted!" in html
