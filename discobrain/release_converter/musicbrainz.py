@@ -382,6 +382,20 @@ class MusicBrainzLookUp:
         if urls:
             self.get_url_resources(urls)
 
+    def clear_cache(self) -> None:
+        cursor = self.db.cursor()
+        cursor.execute("DELETE FROM cache;")
+        cursor.close()
+        self.db.commit()
+
+    def get_cache_count(self) -> int:
+        cursor = self.db.cursor()
+        res = cursor.execute("SELECT COUNT(*) FROM cache;").fetchone()
+        cursor.close()
+        if res:
+            return int(res[0])
+        return 0
+
     def get_mbids(self, mb_base: MBBase, enqueue: bool = True):
         target_types = (MBMedium, MBTrack, MBLabel, MBRelease, MBArtistCredit, MBName)
         for mb_field in fields(mb_base):

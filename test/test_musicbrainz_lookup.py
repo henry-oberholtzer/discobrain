@@ -94,6 +94,16 @@ def test_get_url_resources_single(monkeypatch: MonkeyPatch):
     timestamp = "2026-11-07T05:40:52.744880Z"
     monkeypatch.setattr(MusicBrainzLookUp, "zulu_timestamp", timestamp)
     mb = MusicBrainzLookUp(TEST_AGENT)
+    monkeypatch.setattr(
+        mb,
+        "get",
+        lambda endpoint, params: {
+            "resource": "https://www.discogs.com/release/13954",
+            "relations": [
+                {"target-type": "release", "release": {"id": "ceccb90b-59f8-4856-ab15-c980ed653b1d"}}
+            ],
+        },
+    )
     response = mb.get_url_resources(["https://www.discogs.com/release/13954"])
     assert response == [("https://www.discogs.com/release/13954", "ceccb90b-59f8-4856-ab15-c980ed653b1d", "release", timestamp)]
 
@@ -101,11 +111,44 @@ def test_get_url_resources_multiple(monkeypatch: MonkeyPatch):
     timestamp = "2026-11-07T05:40:52.744880Z"
     monkeypatch.setattr(MusicBrainzLookUp, "zulu_timestamp", timestamp)
     mb = MusicBrainzLookUp(TEST_AGENT)
+    monkeypatch.setattr(
+        mb,
+        "get",
+        lambda endpoint, params: {
+            "urls": [
+                {
+                    "resource": "https://www.discogs.com/release/13954",
+                    "relations": [
+                        {"target-type": "release", "release": {"id": "ceccb90b-59f8-4856-ab15-c980ed653b1d"}}
+                    ],
+                },
+                {
+                    "resource": "https://www.discogs.com/label/1",
+                    "relations": [
+                        {"target-type": "label", "label": {"id": "a0fb31fd-1faa-42fd-9bbe-7da22b83a42e"}}
+                    ],
+                },
+            ]
+        },
+    )
     response = mb.get_url_resources(["https://www.discogs.com/release/13954", "https://www.discogs.com/label/1"])
     assert response == [
             ("https://www.discogs.com/release/13954", "ceccb90b-59f8-4856-ab15-c980ed653b1d", "release", timestamp),
             ("https://www.discogs.com/label/1", "a0fb31fd-1faa-42fd-9bbe-7da22b83a42e", "label", timestamp),
     ]
+
+
+def test_clear_cache_and_get_cache_count():
+    mb = MusicBrainzLookUp(TEST_AGENT)
+    assert mb.get_cache_count() == 0
+
+    mb.store("https://discogs.com/release/1", "mbid-1", "release")
+    mb.store("https://discogs.com/label/1", "mbid-2", "label")
+    assert mb.get_cache_count() == 2
+
+    mb.clear_cache()
+    assert mb.get_cache_count() == 0
+    assert mb.get_by_url("https://discogs.com/release/1") is None
 
 
 def test_clear_queue():
