@@ -5,7 +5,8 @@ from typing import cast
 
 import requests
 
-from release_converter.discogs import (
+from .constants import USER_AGENT
+from .discogs import (
     DISCOGS_FORMAT_MAPPING,
     DISCOGS_ISO_COUNTRY_MAPPING,
     DiscogsFormat,
@@ -13,7 +14,7 @@ from release_converter.discogs import (
     DiscogsRelease,
     DiscogsReleaseArtist,
 )
-from release_converter.musicbrainz import (
+from .musicbrainz import (
     MBURL,
     MBArtistCredit,
     MBArtistName,
@@ -30,8 +31,6 @@ from release_converter.musicbrainz import (
     mb_release_type_from_title,
     mb_release_type_from_tracks,
 )
-
-from .constants import USER_AGENT
 
 DISCOGS_ENDPOINT = "https://api.discogs.com"
 

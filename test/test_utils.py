@@ -1,11 +1,11 @@
 import pytest
 
-from release_converter.musicbrainz import (
+from discobrain.release_converter.musicbrainz import (
     MBReleaseType,
     mb_release_type_from_title,
     mb_release_type_from_tracks,
 )
-from release_converter.utils import guess_iso_15924
+from discobrain.release_converter.utils import guess_iso_15924
 
 
 @pytest.mark.parametrize("text,script", [(

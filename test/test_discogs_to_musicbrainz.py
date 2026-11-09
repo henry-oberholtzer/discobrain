@@ -1,4 +1,3 @@
-from release_converter.musicbrainz import MusicBrainzLookUp
 import json
 from pathlib import Path
 from typing import cast
@@ -6,16 +5,16 @@ from typing import cast
 import pytest
 from pytest import MonkeyPatch
 
-from release_converter import (
+from discobrain.release_converter import (
     ReleaseConverter,
 )
-from release_converter.converter import (
+from discobrain.release_converter.converter import (
     discogs_strip_disambiguation,
     discogs_tracklist,
     release_disambiguation,
 )
-from release_converter.discogs import DiscogsFormat, DiscogsRelease
-from release_converter.musicbrainz import (
+from discobrain.release_converter.discogs import DiscogsFormat, DiscogsRelease
+from discobrain.release_converter.musicbrainz import (
     MBURL,
     MBArtistCredit,
     MBArtistName,
@@ -26,6 +25,7 @@ from release_converter.musicbrainz import (
     MBName,
     MBReleaseType,
     MBTrack,
+    MusicBrainzLookUp,
 )
 
 FILE_PATH = Path(__file__).absolute()

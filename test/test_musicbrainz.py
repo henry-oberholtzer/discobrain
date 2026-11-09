@@ -1,6 +1,6 @@
 import pytest
 
-from release_converter.musicbrainz import (
+from discobrain.release_converter.musicbrainz import (
     MBURL,
     MBArtistCredit,
     MBArtistName,

@@ -8,7 +8,10 @@ import pytest
 from pytest import MonkeyPatch
 from requests_ratelimiter import LimiterSession
 
-from release_converter.musicbrainz import MUSICBRAINZ_API_ROOT, MusicBrainzLookUp
+from discobrain.release_converter.musicbrainz import (
+    MUSICBRAINZ_API_ROOT,
+    MusicBrainzLookUp,
+)
 
 TEST_AGENT = "DiscobrainTest/0.0.1 ( henryoberholtzer@gmail.com )"
 
