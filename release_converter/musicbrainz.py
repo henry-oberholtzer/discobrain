@@ -6,7 +6,7 @@ import itertools
 import re
 import sqlite3
 from collections.abc import MutableMapping
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, fields
 from enum import StrEnum
 from functools import cached_property
 from os import PathLike
@@ -222,7 +222,6 @@ def mb_release_type_from_title(title: str) -> MBReleaseType:
     if ends with 'EP', or 'E.P.'-> EP
     """
     normalized = re.sub(r'[^a-z ]', '', title.lower())
-    print(normalized)
     if normalized.endswith('ep') or ' ep ' in normalized:
         return MBReleaseType.EP
     if normalized.endswith(('album', 'lp')):
@@ -260,6 +259,7 @@ class MusicBrainzLookUp:
         self.db_file = db_file
         self.api_root = MUSICBRAINZ_API_ROOT if not api_root else api_root
         self.url_rels = MUSICBRAINZ_URL_RELS if not url_rels else url_rels
+        self.queue = []
         # If a database file is given, create the tables on it if they don't exist
         if init_tables:
             self.init_tables()
@@ -366,9 +366,6 @@ class MusicBrainzLookUp:
         cursor.execute(self.table_definition())
         cursor.close()
 
-    def bulk_query(self, urls: list[str]):
-        raise NotImplementedError
-
     def get_mbid(self, url: str, relationship: str) -> str | None:
         # Either immediately returns a query or enqueus it.
         cursor = self.db.cursor()
@@ -377,4 +374,40 @@ class MusicBrainzLookUp:
         if response:
             return response[0]
         return None
+
+    def get_by_url(self, url: str) -> str | None:
+        cursor = self.db.cursor()
+        response = cursor.execute(f"SELECT mbid FROM cache WHERE url='{url}'").fetchone()
+        cursor.close()
+        if response:
+            return response[0]
+        return None
+
+    def clear_queue(self):
+        self.get_url_resources(self.queue)
+
+    def get_mbids(self, mb_base: MBBase, enqueue: bool = True):
+        target_types = (MBMedium, MBTrack, MBLabel, MBRelease, MBArtistCredit, MBName)
+        for mb_field in fields(mb_base):
+            key = mb_field.name
+            value = getattr(mb_base, key)
+            if key in ["mbid", "release_group"] and not re.match(
+                    r'[a-z0-9]{8}-[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{12}'
+                , value) and value.startswith("http"):
+                    if stored_mbid := self.get_by_url(value):
+                        setattr(mb_base, key, stored_mbid)
+                    elif enqueue:
+                        self.queue.append(value)
+                    else:
+                        # Nothing has been found
+                        setattr(mb_base, key, None)
+            elif isinstance(value, target_types):
+                self.get_mbids(value)
+            elif isinstance(value, list):
+                for entry in value:
+                    if isinstance(entry, MBArtistCredit):
+                        for ename in entry.names:
+                            self.get_mbids(ename)
+                    elif isinstance(entry, target_types):
+                        self.get_mbids(entry)
 

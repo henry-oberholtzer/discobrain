@@ -1,18 +1,15 @@
-from release_converter.musicbrainz import MBLabel
-from release_converter.discogs import DiscogsLabel
-from copy import deepcopy
 import re
+from copy import deepcopy
 from itertools import chain
 from typing import cast
 
 import requests
-import math
 
 from release_converter.discogs import (
     DISCOGS_FORMAT_MAPPING,
     DISCOGS_ISO_COUNTRY_MAPPING,
     DiscogsFormat,
-    DiscogsTrack,
+    DiscogsLabel,
     DiscogsRelease,
     DiscogsReleaseArtist,
 )
@@ -22,12 +19,14 @@ from release_converter.musicbrainz import (
     MBArtistName,
     MBDate,
     MBEvent,
+    MBLabel,
     MBMedium,
     MBName,
     MBRelease,
     MBReleaseStatus,
     MBReleaseType,
     MBTrack,
+    MusicBrainzLookUp,
     mb_release_type_from_title,
     mb_release_type_from_tracks,
 )
@@ -174,7 +173,7 @@ def build_artist(d_artist: DiscogsReleaseArtist) -> MBName:
     else:
         # Set this as a Discogs ID for now
         # we'll see if we can find the artist later, otherwise we will drop it.
-        artist.mbid = str(d_artist.get('id'))
+        artist.mbid = f"https://www.discogs.com/artist/{d_artist.get('id')}"
         anv = discogs_strip_disambiguation(d_artist.get('anv'))
         name = discogs_strip_disambiguation(d_artist.get('name'))
         artist.name = anv if anv else name
@@ -214,7 +213,6 @@ def discogs_tracklist(d: DiscogsRelease) -> list[MBMedium]:
                         current_medium += 1
                 else:
                     current_medium += 1
-                print(current_medium)
 
         if track_artists := track.get('artists'):
             mb_track.artist_credit = build_artists(track_artists)
@@ -240,11 +238,15 @@ def build_label(l: DiscogsLabel) -> MBLabel:
     return MBLabel(
         name=discogs_strip_disambiguation(l['name']),
         catalog_number=l['catno'],
-        mbid=str(l['id'])
+        mbid=f"https://www.discogs.com/label/{l['id']}"
     )
 
 def build_labels(l: list[DiscogsLabel]) -> list[MBLabel]:
     return [build_label(label) for label in l]
+
+def discogs_master_release(d: DiscogsRelease) -> str | None:
+    master_id = d.get('master_id')
+    return f"https://www.discogs.com/master/{master_id}" if master_id else None
 
 
 class ReleaseConverter:
@@ -273,6 +275,7 @@ class ReleaseConverter:
     def _mb_from_discogs_release(self, d: DiscogsRelease) -> MBRelease:
         mb = MBRelease(name=d['title']) 
         mb.artist_credit=build_artists(d['artists'])
+        mb.release_group=discogs_master_release(d)
         mb.barcode = barcode(d)
         mb.urls = [discogs_url(d)]
         mb.type = release_type(d)
@@ -282,6 +285,10 @@ class ReleaseConverter:
         mb.events = discogs_release_events(d)
         mb.mediums = discogs_tracklist(d)
         mb.labels = build_labels(d['labels'])
+        lookup = MusicBrainzLookUp("TestDiscobrain 0.0.1/ henryoberholtzer@gmail.com")
+        lookup.get_mbids(mb)
+        lookup.clear_queue()
+        lookup.get_mbids(mb, enqueue=False)
         return mb
 
 
@@ -289,5 +296,6 @@ class ReleaseConverter:
         id = self._discogs_id_extract(discogs_release)
         # fetch the release from discogs
         release = self._discogs_release_endpoint(id)
+        # now check the IDs against our URL cache
         return self._mb_from_discogs_release(release)
 

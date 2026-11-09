@@ -16,7 +16,6 @@ def guess_iso_15924(text: str) -> str:
         else:
             blocks[block] = 1
     most_common = max(blocks.items(), key=lambda x: x[1])[0]
-    print(most_common)
     if "Latin" in most_common:
         return "Latn"
     results = script_names.find(name=most_common.split(" ")[0])

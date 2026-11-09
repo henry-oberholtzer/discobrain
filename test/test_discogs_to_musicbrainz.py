@@ -1,3 +1,4 @@
+from release_converter.musicbrainz import MusicBrainzLookUp
 import json
 from pathlib import Path
 from typing import cast
@@ -15,13 +16,13 @@ from release_converter.converter import (
 )
 from release_converter.discogs import DiscogsFormat, DiscogsRelease
 from release_converter.musicbrainz import (
+    MBURL,
     MBArtistCredit,
     MBArtistName,
     MBDate,
     MBEvent,
-    MBMedium,
     MBLabel,
-    MBURL,
+    MBMedium,
     MBName,
     MBReleaseType,
     MBTrack,
@@ -77,7 +78,7 @@ def test_release_disambiguation(given: list[DiscogsFormat], expected: str):
                     names=[
                         MBName(
                             name="Noisia",
-                            mbid="100457",
+                            mbid="https://www.discogs.com/artist/100457",
                             artist=MBArtistName(name="Noisia"),
                         )
                     ]
@@ -91,13 +92,13 @@ def test_release_disambiguation(given: list[DiscogsFormat], expected: str):
                     names=[
                         MBName(
                             name="Noisia",
-                            mbid="100457",
+                            mbid="https://www.discogs.com/artist/100457",
                             artist=MBArtistName(name="Noisia"),
                             join_phrase=" Feat. "
                         ),
                         MBName(
                             name="Phace",
-                            mbid="132592",
+                            mbid="https://www.discogs.com/artist/132592",
                             artist=MBArtistName(name="Phace")
                         )
                     ]
@@ -111,10 +112,20 @@ def test_discogs_tracklist(given: DiscogsRelease, expected: list[MBMedium]):
 
 
 def test_discogs_teebee(monkeypatch: MonkeyPatch):
+    mapping = {
+        "https://www.discogs.com/artist/22979": "33299664-1156-4888-a01e-f12797aa1941",
+        "https://www.discogs.com/label/161": "39c4dc0c-badb-4ac3-b810-e4f374dff6d9",
+        "https://www.discogs.com/master/29822": "6d902f27-8a49-354b-ba99-735e3b570262"
+    }
+    def fake_lookup(key: str) -> str | None:
+        return mapping.get(key)
+
+    monkeypatch.setattr(MusicBrainzLookUp, "get_by_url", lambda _, url: fake_lookup(url))
     monkeypatch.setattr(ReleaseConverter, "_discogs_release_endpoint", lambda _, release_id: load_json(release_id))
     release = ReleaseConverter().discogs(13954)
     assert release.name == "Through the Eyes of a Scorpion"
     assert release.urls == [MBURL(url="https://www.discogs.com/release/13954", link_type=76)]
+    assert release.release_group == "6d902f27-8a49-354b-ba99-735e3b570262"
     assert release.barcode == "5033826056260"
     assert release.type == MBReleaseType.ALBUM
     assert release.comment == ""
@@ -129,14 +140,14 @@ def test_discogs_teebee(monkeypatch: MonkeyPatch):
         country='GB')]
     assert release.labels == [MBLabel(
         name="Certificate 18",
-        mbid="161",
+        mbid="39c4dc0c-badb-4ac3-b810-e4f374dff6d9",
         catalog_number="CERT18 LP014"
     )]
     teebee_credit = MBArtistCredit(
         names=[
         MBName(
             name="DJ Teebee",
-            mbid="22979",
+            mbid="33299664-1156-4888-a01e-f12797aa1941",
             artist=MBArtistName(name="Teebee")
         )
     ]
