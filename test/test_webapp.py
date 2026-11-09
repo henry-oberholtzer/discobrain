@@ -1,6 +1,8 @@
 import io
+from unittest.mock import patch
 
 from discobrain import get_batch_store
+from discobrain.batch_store import BatchItemStatus
 
 
 def test_index_page_renders(client):
@@ -20,7 +22,8 @@ def test_parse_empty_input_redirects_with_error(client):
     assert "Please provide at least one valid Discogs release URL or ID." in html
 
 
-def test_parse_valid_textarea_creates_batch(client):
+@patch("discobrain.process_batch")
+def test_parse_valid_textarea_creates_batch(mock_process, client):
     data = {
         "raw_urls": "https://www.discogs.com/release/13954-DJ-Teebee\n38348\n13954"
     }
@@ -38,9 +41,11 @@ def test_parse_valid_textarea_creates_batch(client):
     assert len(items) == 2
     assert items[0].discogs_id == 13954
     assert items[1].discogs_id == 38348
+    mock_process.assert_called_once()
 
 
-def test_parse_file_upload_creates_batch(client):
+@patch("discobrain.process_batch")
+def test_parse_file_upload_creates_batch(mock_process, client):
     file_bytes = b"765433\nhttps://www.discogs.com/release/631758\n"
     data = {
         "raw_urls": "",
@@ -57,9 +62,11 @@ def test_parse_file_upload_creates_batch(client):
     assert batch.total_items == 2
     items = store.get_items(batch_id)
     assert [item.discogs_id for item in items] == [765433, 631758]
+    mock_process.assert_called_once()
 
 
-def test_parse_combined_textarea_and_file(client):
+@patch("discobrain.process_batch")
+def test_parse_combined_textarea_and_file(mock_process, client):
     file_bytes = b"765433\n13954\n"
     data = {
         "raw_urls": "13954\n38348",
@@ -72,22 +79,38 @@ def test_parse_combined_textarea_and_file(client):
     store = get_batch_store()
     items = store.get_items(batch_id)
     assert [item.discogs_id for item in items] == [13954, 38348, 765433]
+    mock_process.assert_called_once()
 
 
 def test_submissions_view_renders_batch(client):
     store = get_batch_store()
     batch_id = store.create_batch()
-    store.add_item(batch_id, 13954, title="Through The Eyes Of A Scorpion", artist="DJ Teebee")
-    store.add_item(batch_id, 765433, title="End Game", artist="Noisia")
+    store.add_item(
+        batch_id,
+        13954,
+        title="Through The Eyes Of A Scorpion",
+        artist="DJ Teebee",
+        format='12" Vinyl',
+        year=2001,
+        status=BatchItemStatus.PENDING.value,
+    )
+    store.add_item(
+        batch_id,
+        765433,
+        title="End Game",
+        artist="Noisia",
+        status=BatchItemStatus.DROPPED.value,
+        mbid="ceccb90b-59f8-4856-ab15-c980ed653b1d",
+    )
 
     resp = client.get(f"/submissions/{batch_id}")
     assert resp.status_code == 200
     html = resp.data.decode("utf-8")
     assert f"Import Batch: {batch_id[:8]}" in html
     assert "Through The Eyes Of A Scorpion" in html
-    assert "Noisia" in html
-    assert "Discogs Release #13954" in html
-    assert "Discogs Release #765433" in html
+    assert "DJ Teebee" in html
+    assert "Dropped Releases (Already Present in MusicBrainz)" in html
+    assert "https://musicbrainz.org/release/ceccb90b-59f8-4856-ab15-c980ed653b1d" in html
 
 
 def test_submissions_view_not_found(client):

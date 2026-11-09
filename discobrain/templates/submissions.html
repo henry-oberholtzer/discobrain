@@ -34,12 +34,18 @@
   </div>
 </div>
 
-<div class="card">
-  <h3 class="card-title">Parsed Releases</h3>
-  {% if items %}
+{% set dropped_items = items | selectattr("status", "equalto", "dropped") | list %}
+{% if dropped_items %}
+  <div class="card" style="border-left: 4px solid #f59e0b;">
+    <h3 class="card-title" style="color: #92400e;">
+      Dropped Releases (Already Present in MusicBrainz)
+    </h3>
+    <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 1rem;">
+      The following releases were matched against MusicBrainz or the local cache and have been excluded from the submission queue:
+    </p>
     <ul style="list-style: none;">
-      {% for item in items %}
-        <li style="padding: 0.75rem 0; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center;">
+      {% for item in dropped_items %}
+        <li style="padding: 0.6rem 0; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem;">
           <div>
             <strong>Discogs Release #{{ item.discogs_id }}</strong>
             {% if item.title %}
@@ -50,15 +56,48 @@
             {% endif %}
           </div>
           <div>
-            <span class="badge" style="background-color: var(--bg); border: 1px solid var(--border); color: var(--text);">
-              {{ item.status }}
+            {% if item.mbid %}
+              <a href="https://musicbrainz.org/release/{{ item.mbid }}" target="_blank" rel="noopener" class="btn btn-sm btn-secondary" style="color: #92400e;">
+                View on MusicBrainz ↗
+              </a>
+            {% else %}
+              <span class="badge badge-unauth">Already in MB</span>
+            {% endif %}
+          </div>
+        </li>
+      {% endfor %}
+    </ul>
+  </div>
+{% endif %}
+
+<div class="card">
+  <h3 class="card-title">Pending Submissions</h3>
+  {% set pending_items = items | selectattr("status", "equalto", "pending") | list %}
+  {% if pending_items %}
+    <ul style="list-style: none;">
+      {% for item in pending_items %}
+        <li style="padding: 0.75rem 0; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem;">
+          <div>
+            <strong>Discogs Release #{{ item.discogs_id }}</strong>
+            {% if item.title %}
+              <div style="font-size: 1.05rem; font-weight: 600;">{{ item.title }}</div>
+            {% endif %}
+            <div style="color: var(--text-muted); font-size: 0.85rem;">
+              {% if item.artist %}Artist: {{ item.artist }} · {% endif %}
+              {% if item.format %}Format: {{ item.format }} · {% endif %}
+              {% if item.year %}Year: {{ item.year }}{% endif %}
+            </div>
+          </div>
+          <div>
+            <span class="badge" style="background-color: #eff6ff; border: 1px solid #bfdbfe; color: #1d4ed8;">
+              Ready for Seeding
             </span>
           </div>
         </li>
       {% endfor %}
     </ul>
   {% else %}
-    <p style="color: var(--text-muted);">No releases found in this batch.</p>
+    <p style="color: var(--text-muted);">No pending releases in this batch.</p>
   {% endif %}
 </div>
 {% endblock %}

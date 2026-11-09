@@ -298,6 +298,7 @@ class MusicBrainzLookUp:
             (url, mbid, relationship, self.zulu_timestamp)
         )
         cursor.close()
+        self.db.commit()
 
     def get(self, endpoint: str, params: dict[str, Any]) -> dict[str, Any] | None:
         try:

@@ -16,6 +16,7 @@ from flask import (
 from . import auth
 from .batch_store import BatchStore
 from .parser import parse_discogs_ids
+from .pipeline import build_converter, get_musicbrainz_lookup, process_batch
 
 load_dotenv()
 
@@ -82,7 +83,20 @@ def parse():
     for d_id in discogs_ids:
         store.add_item(batch_id, discogs_id=d_id)
 
-    flash(f"Parsed {len(discogs_ids)} release ID(s).", "success")
+    db_path = app.config.get("DISCOBRAIN_DB")
+    lookup = get_musicbrainz_lookup(db_path)
+    converter = build_converter(lookup=lookup, session_data=dict(session))
+    base_url = request.host_url
+
+    process_batch(
+        batch_id=batch_id,
+        batch_store=store,
+        lookup=lookup,
+        converter=converter,
+        base_url=base_url,
+    )
+
+    flash(f"Processed {len(discogs_ids)} release(s).", "success")
     return redirect(url_for("submissions_view", batch_id=batch_id))
 
 

@@ -54,7 +54,7 @@ class BatchStore:
         self.db_path = str(db_path) if db_path else ":memory:"
         if self.db_path != ":memory:":
             Path(self.db_path).parent.mkdir(parents=True, exist_ok=True)
-        self._conn = sqlite3.connect(self.db_path, check_same_thread=False)
+        self._conn = sqlite3.connect(self.db_path, timeout=30.0, check_same_thread=False)
         self._conn.row_factory = sqlite3.Row
         self.init_tables()
 
@@ -270,6 +270,31 @@ class BatchStore:
             self._conn.execute(
                 "UPDATE batch_items SET payload = ? WHERE id = ?;",
                 (payload_json, item_id),
+            )
+
+    def update_item_details(
+        self,
+        item_id: int,
+        *,
+        title: str | None = None,
+        artist: str | None = None,
+        format: str | None = None,
+        year: int | None = None,
+        payload: dict[str, Any] | None = None,
+    ) -> None:
+        payload_json = json.dumps(payload) if payload is not None else None
+        with self._conn:
+            self._conn.execute(
+                """
+                UPDATE batch_items
+                SET title = coalesce(?, title),
+                    artist = coalesce(?, artist),
+                    format = coalesce(?, format),
+                    year = coalesce(?, year),
+                    payload = coalesce(?, payload)
+                WHERE id = ?;
+                """,
+                (title, artist, format, year, payload_json, item_id),
             )
 
     def update_batch_status(self, batch_id: str, status: str) -> None:
