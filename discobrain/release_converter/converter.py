@@ -1,9 +1,12 @@
+import os
 import re
 from copy import deepcopy
 from itertools import chain
 from typing import cast
 
 import requests
+from requests_oauthlib import OAuth1
+from requests_ratelimiter import LimiterSession
 
 from .constants import USER_AGENT
 from .discogs import (
@@ -33,6 +36,8 @@ from .musicbrainz import (
 )
 
 DISCOGS_ENDPOINT = "https://api.discogs.com"
+DISCOGS_AUTHENTICATED_REQUESTS_PER_MINUTE = 60
+DISCOGS_UNAUTHENTICATED_REQUESTS_PER_MINUTE = 25
 
 DISCOGS_ID_RE = re.compile(r"(?<=\/)\d+")
 
@@ -249,6 +254,91 @@ def discogs_master_release(d: DiscogsRelease) -> str | None:
 
 
 class ReleaseConverter:
+    def __init__(
+        self,
+        lookup: MusicBrainzLookUp | None = None,
+        *,
+        user_token: str | None = None,
+        api_key: str | None = None,
+        consumer_key: str | None = None,
+        consumer_secret: str | None = None,
+        oauth_token: str | None = None,
+        oauth_token_secret: str | None = None,
+        session: requests.Session | None = None,
+        user_agent: str = USER_AGENT,
+        auto_env: bool = True,
+    ):
+        self.lookup = lookup
+        self.user_agent = user_agent
+        self.user_token = user_token or api_key
+        self.consumer_key = consumer_key
+        self.consumer_secret = consumer_secret
+        self.oauth_token = oauth_token
+        self.oauth_token_secret = oauth_token_secret
+        self.auto_env = auto_env
+
+        if auto_env:
+            if not self.user_token:
+                self.user_token = os.getenv("DISCOGS_USER_TOKEN") or os.getenv("DISCOGS_API_KEY")
+            if not self.consumer_key:
+                self.consumer_key = os.getenv("DISCOGS_CONSUMER_KEY")
+            if not self.consumer_secret:
+                self.consumer_secret = os.getenv("DISCOGS_CONSUMER_SECRET")
+            if not self.oauth_token:
+                self.oauth_token = os.getenv("DISCOGS_OAUTH_TOKEN")
+            if not self.oauth_token_secret:
+                self.oauth_token_secret = os.getenv("DISCOGS_OAUTH_TOKEN_SECRET")
+
+        if session is not None:
+            self.session = self._configure_session(session)
+        else:
+            self.session = self._build_session()
+
+    @property
+    def is_authenticated(self) -> bool:
+        return self.auth_type is not None
+
+    @property
+    def auth_type(self) -> str | None:
+        if self.consumer_key and self.consumer_secret and self.oauth_token and self.oauth_token_secret:
+            return "oauth"
+        if self.user_token:
+            return "user_token"
+        if self.consumer_key and self.consumer_secret:
+            return "key_secret"
+        return None
+
+    def _configure_session(self, session: requests.Session) -> requests.Session:
+        session.headers["User-Agent"] = self.user_agent
+
+        match self.auth_type:
+            case "oauth":
+                if session.auth is None:
+                    session.auth = OAuth1(
+                        client_key=self.consumer_key,
+                        client_secret=self.consumer_secret,
+                        resource_owner_key=self.oauth_token,
+                        resource_owner_secret=self.oauth_token_secret,
+                    )
+            case "user_token":
+                if "Authorization" not in session.headers:
+                    session.headers["Authorization"] = f"Discogs token={self.user_token}"
+            case "key_secret":
+                if "Authorization" not in session.headers:
+                    session.headers["Authorization"] = f"Discogs key={self.consumer_key}, secret={self.consumer_secret}"
+            case _:
+                pass
+
+        return session
+
+    def _build_session(self) -> requests.Session:
+        rate_limit = (
+            DISCOGS_AUTHENTICATED_REQUESTS_PER_MINUTE
+            if self.is_authenticated
+            else DISCOGS_UNAUTHENTICATED_REQUESTS_PER_MINUTE
+        )
+        session = LimiterSession(per_minute=rate_limit)
+        return self._configure_session(session)
 
     def edit_note(self, discogs_release: str | int) -> str:
         if isinstance(discogs_release, int):
@@ -264,10 +354,7 @@ class ReleaseConverter:
         return int(discogs_url)
 
     def _discogs_release_endpoint(self, release_id: int) -> DiscogsRelease:
-        response = requests.get(
-            f"{DISCOGS_ENDPOINT}/releases/{release_id}",
-            headers={ 'User-Agent': USER_AGENT}
-        )
+        response = self.session.get(f"{DISCOGS_ENDPOINT}/releases/{release_id}")
         response.raise_for_status()
         return cast(DiscogsRelease, response.json())
 
@@ -284,17 +371,34 @@ class ReleaseConverter:
         mb.events = discogs_release_events(d)
         mb.mediums = discogs_tracklist(d)
         mb.labels = build_labels(d['labels'])
-        lookup = MusicBrainzLookUp("TestDiscobrain 0.0.1/ henryoberholtzer@gmail.com")
-        lookup.get_mbids(mb)
-        lookup.clear_queue()
-        lookup.get_mbids(mb, enqueue=False)
         return mb
 
+    def run_lookup(self, mb_releases: list[MBRelease] | MBRelease):
+        if self.lookup:
+            if not isinstance(mb_releases, list):
+                mb_releases = [mb_releases]
+            for mb_release in mb_releases:
+                self.lookup.get_mbids(mb_release)
+            self.lookup.clear_queue()
+            for mb_release in mb_releases:
+                self.lookup.get_mbids(mb_release, enqueue=False)
 
-    def discogs(self, discogs_release: str | int) -> MBRelease:
-        id = self._discogs_id_extract(discogs_release)
+    def discogs(self, discogs_release: str | int | list[str] | list[int]) -> MBRelease | list[MBRelease]:
+        if isinstance(discogs_release, list):
+            releases = []
+            for id in discogs_release:
+                id = self._discogs_id_extract(id)
+                release = self._discogs_release_endpoint(id)
+                mb = self._mb_from_discogs_release(release)
+                releases.append(mb)
+            self.run_lookup(releases)
+            return releases
+        else:
         # fetch the release from discogs
-        release = self._discogs_release_endpoint(id)
+            id = self._discogs_id_extract(discogs_release)
+            release = self._discogs_release_endpoint(id)
+            mb = self._mb_from_discogs_release(release)
+            self.run_lookup(mb)
         # now check the IDs against our URL cache
-        return self._mb_from_discogs_release(release)
+            return mb
 

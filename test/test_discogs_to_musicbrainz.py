@@ -27,6 +27,7 @@ from discobrain.release_converter.musicbrainz import (
     MBTrack,
     MusicBrainzLookUp,
 )
+from test.test_musicbrainz_lookup import TEST_AGENT
 
 FILE_PATH = Path(__file__).absolute()
 
@@ -122,7 +123,8 @@ def test_discogs_teebee(monkeypatch: MonkeyPatch):
 
     monkeypatch.setattr(MusicBrainzLookUp, "get_by_url", lambda _, url: fake_lookup(url))
     monkeypatch.setattr(ReleaseConverter, "_discogs_release_endpoint", lambda _, release_id: load_json(release_id))
-    release = ReleaseConverter().discogs(13954)
+    release = ReleaseConverter(lookup=MusicBrainzLookUp(TEST_AGENT)).discogs(13954)
+    assert not isinstance(release, list)
     assert release.name == "Through the Eyes of a Scorpion"
     assert release.urls == [MBURL(url="https://www.discogs.com/release/13954", link_type=76)]
     assert release.release_group == "6d902f27-8a49-354b-ba99-735e3b570262"
