@@ -86,3 +86,13 @@ def auth():
     session['discogs_access_token'] = tokens.get('oauth_token')
     session['discogs_access_token_secret'] = tokens.get('oauth_token_secret')
     return redirect(url_for('discogs.login'))
+
+
+@bp.route('/logout', methods=['GET', 'POST'])
+def logout():
+    session.pop('discogs_access_token', None)
+    session.pop('discogs_access_token_secret', None)
+    session.pop('discogs_req_token', None)
+    session.pop('discogs_req_token_secret', None)
+    session.pop('discogs_username', None)
+    return redirect(url_for('index'))

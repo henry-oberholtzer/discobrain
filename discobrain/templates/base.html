@@ -1,10 +1,244 @@
 <!doctype html>
-<title>{% block title %}{% endblock %} - Discobrain</title>
-<nav>
-  <h1>Discobrain</h1>
-  <ul>
-    {% if g.user %}
-    <li><span>{{ g.user['username'] }}</span>
-    <li><a href="{{ url_for('auth.logout')}}">Revoke Token</a>
-    {}
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Home{% endblock %} - Discobrain</title>
+  <style>
+    :root {
+      --bg: #f8fafc;
+      --card-bg: #ffffff;
+      --border: #e2e8f0;
+      --text: #0f172a;
+      --text-muted: #64748b;
+      --primary: #2563eb;
+      --primary-hover: #1d4ed8;
+      --success-bg: #dcfce7;
+      --success-text: #166534;
+      --warn-bg: #fef3c7;
+      --warn-text: #92400e;
+      --danger-bg: #fee2e2;
+      --danger-text: #991b1b;
+      --header-bg: #0f172a;
+      --header-text: #f8fafc;
+    }
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background-color: var(--bg);
+      color: var(--text);
+      line-height: 1.5;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+    header {
+      background-color: var(--header-bg);
+      color: var(--header-text);
+      padding: 0.75rem 1.5rem;
+      border-bottom: 1px solid #334155;
+    }
+    .header-inner {
+      max-width: 1000px;
+      margin: 0 auto;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+    }
+    .brand {
+      font-size: 1.25rem;
+      font-weight: 700;
+      color: #ffffff;
+      text-decoration: none;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .brand:hover {
+      color: #93c5fd;
+    }
+    .auth-bar {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      font-size: 0.875rem;
+    }
+    .badge {
+      padding: 0.25rem 0.6rem;
+      border-radius: 9999px;
+      font-weight: 500;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+    }
+    .badge-auth {
+      background-color: #14532d;
+      color: #bbf7d0;
+      border: 1px solid #166534;
+    }
+    .badge-unauth {
+      background-color: #78350f;
+      color: #fde68a;
+      border: 1px solid #92400e;
+    }
+    .btn-link {
+      color: #93c5fd;
+      text-decoration: underline;
+      background: none;
+      border: none;
+      cursor: pointer;
+      font-size: 0.875rem;
+    }
+    .btn-link:hover {
+      color: #bfdbfe;
+    }
+    .container {
+      max-width: 1000px;
+      width: 100%;
+      margin: 1.5rem auto;
+      padding: 0 1rem;
+      flex: 1;
+    }
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1.5rem;
+      margin-bottom: 1.5rem;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+    }
+    .card-title {
+      font-size: 1.25rem;
+      font-weight: 600;
+      margin-bottom: 1rem;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 0.5rem;
+    }
+    .btn {
+      display: inline-block;
+      font-weight: 600;
+      text-align: center;
+      padding: 0.5rem 1rem;
+      font-size: 0.95rem;
+      border-radius: 6px;
+      cursor: pointer;
+      border: 1px solid transparent;
+      text-decoration: none;
+      transition: background-color 0.15s ease-in-out;
+    }
+    .btn-primary {
+      background-color: var(--primary);
+      color: #ffffff;
+    }
+    .btn-primary:hover {
+      background-color: var(--primary-hover);
+    }
+    .btn-secondary {
+      background-color: #e2e8f0;
+      color: #1e293b;
+    }
+    .btn-secondary:hover {
+      background-color: #cbd5e1;
+    }
+    .btn-success {
+      background-color: #15803d;
+      color: #ffffff;
+    }
+    .btn-success:hover {
+      background-color: #166534;
+    }
+    .btn-sm {
+      padding: 0.25rem 0.5rem;
+      font-size: 0.85rem;
+    }
+    .alert {
+      padding: 0.75rem 1rem;
+      border-radius: 6px;
+      margin-bottom: 1rem;
+      font-size: 0.9rem;
+    }
+    .alert-success {
+      background-color: var(--success-bg);
+      color: var(--success-text);
+      border: 1px solid #bbf7d0;
+    }
+    .alert-error, .alert-danger {
+      background-color: var(--danger-bg);
+      color: var(--danger-text);
+      border: 1px solid #fecaca;
+    }
+    .alert-warning {
+      background-color: var(--warn-bg);
+      color: var(--warn-text);
+      border: 1px solid #fde68a;
+    }
+    .alert-info {
+      background-color: #e0f2fe;
+      color: #0369a1;
+      border: 1px solid #bae6fd;
+    }
+    footer {
+      border-top: 1px solid var(--border);
+      padding: 1.25rem 1rem;
+      text-align: center;
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      background: var(--card-bg);
+    }
+    footer a {
+      color: var(--primary);
+      text-decoration: none;
+    }
+    footer a:hover {
+      text-decoration: underline;
+    }
+  </style>
+  {% block head %}{% endblock %}
+</head>
+<body>
+  <header>
+    <div class="header-inner">
+      <a href="{{ url_for('index') }}" class="brand">
+        <span>🪩 Discobrain</span>
+      </a>
+      <div class="auth-bar">
+        {% if g.user and g.user.authenticated %}
+          <span class="badge badge-auth" title="Authenticated API access (60 requests/min)">
+            ● Discogs: Connected ({{ g.user.username }}) · 60/min
+          </span>
+          <a href="{{ url_for('discogs.logout') }}" class="btn-link">Disconnect</a>
+        {% else %}
+          <span class="badge badge-unauth" title="Unauthenticated access (25 requests/min)">
+            ○ Discogs: Not Connected · 25/min
+          </span>
+          <a href="{{ url_for('discogs.login') }}" class="btn-link">Connect Discogs</a>
+        {% endif %}
+      </div>
+    </div>
+  </header>
 
+  <main class="container">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <div class="flashes">
+          {% for category, message in messages %}
+            <div class="alert alert-{{ category }}">{{ message }}</div>
+          {% endfor %}
+        </div>
+      {% endif %}
+    {% endwith %}
+
+    {% block content %}{% endblock %}
+  </main>
+
+  <footer>
+    Discobrain — Fast batch importer into <a href="https://musicbrainz.org" target="_blank" rel="noopener">MusicBrainz</a>.
+  </footer>
+</body>
+</html>
