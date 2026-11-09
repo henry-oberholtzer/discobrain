@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+
+{% block title %}Import Releases{% endblock %}
+
+{% block content %}
+<div class="card">
+  <h2 class="card-title">Batch Import Releases to MusicBrainz</h2>
+  <p style="margin-bottom: 1.25rem; color: var(--text-muted);">
+    Paste a list of Discogs release URLs or IDs below, or upload a text file. Discobrain will pre-filter existing MusicBrainz entries, convert the metadata with intrinsic normalization, and guide you through the submission process.
+  </p>
+
+  {% if not g.user or not g.user.authenticated %}
+    <div class="alert alert-warning" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem;">
+      <div>
+        <strong>Tip:</strong> You are currently unauthenticated (25 req/min). Authenticating with Discogs increases your speed to 60 req/min.
+      </div>
+      <a href="{{ url_for('discogs.login') }}" class="btn btn-sm btn-secondary">Connect with Discogs</a>
+    </div>
+  {% endif %}
+
+  <form action="{{ url_for('parse') }}" method="POST" enctype="multipart/form-data">
+    <div style="margin-bottom: 1.25rem;">
+      <label for="raw_urls" style="display: block; font-weight: 600; margin-bottom: 0.5rem;">
+        Discogs URLs or IDs (one per line):
+      </label>
+      <textarea
+        id="raw_urls"
+        name="raw_urls"
+        rows="8"
+        style="width: 100%; padding: 0.75rem; border: 1px solid var(--border); border-radius: 6px; font-family: monospace; font-size: 0.9rem;"
+        placeholder="https://www.discogs.com/release/13954-DJ-Teebee-Through-The-Eyes-Of-A-Scorpion&#10;https://www.discogs.com/release/765433&#10;38348"
+      ></textarea>
+    </div>
+
+    <div style="margin-bottom: 1.5rem;">
+      <label for="file" style="display: block; font-weight: 600; margin-bottom: 0.5rem;">
+        Or upload a text file (.txt):
+      </label>
+      <input
+        type="file"
+        id="file"
+        name="file"
+        accept=".txt,text/plain"
+        style="display: block; font-size: 0.9rem;"
+      >
+      <small style="color: var(--text-muted); display: block; margin-top: 0.25rem;">
+        Plain text file containing newline-separated Discogs URLs or release IDs.
+      </small>
+    </div>
+
+    <button type="submit" class="btn btn-primary" style="padding: 0.6rem 1.5rem; font-size: 1rem;">
+      Parse & Begin Submissions
+    </button>
+  </form>
+</div>
+
+<div class="card" style="background-color: transparent; border: 1px dashed var(--border); box-shadow: none;">
+  <h3 style="font-size: 1rem; font-weight: 600; margin-bottom: 0.5rem;">How Discobrain Works</h3>
+  <ol style="margin-left: 1.25rem; font-size: 0.9rem; color: var(--text-muted); line-height: 1.6;">
+    <li><strong>Deduplication:</strong> Discogs IDs are queried against MusicBrainz and the local cache; releases that already exist are automatically dropped.</li>
+    <li><strong>Intrinsic Normalization:</strong> Data is structured into MusicBrainz-compliant entities with automatic title-casing, ISO country mapping, and language/script deduction.</li>
+    <li><strong>Guided Seeding:</strong> Submissions can be seeded individually or sequentially using MusicBrainz's release editor seeding protocol.</li>
+  </ol>
+</div>
+{% endblock %}

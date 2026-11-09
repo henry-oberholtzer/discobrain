@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+
+{% block title %}Submissions (Batch {{ batch.id[:8] }}){% endblock %}
+
+{% block content %}
+<div class="card">
+  <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 1rem;">
+    <div>
+      <h2 style="font-size: 1.35rem; font-weight: 700;">Import Batch: {{ batch.id[:8] }}</h2>
+      <p style="color: var(--text-muted); font-size: 0.85rem;">Created {{ batch.created_at }}</p>
+    </div>
+    <div style="display: flex; gap: 0.5rem;">
+      <a href="{{ url_for('index') }}" class="btn btn-secondary btn-sm">Start New Import</a>
+    </div>
+  </div>
+
+  <div style="display: flex; gap: 1rem; margin-bottom: 1.5rem; flex-wrap: wrap;">
+    <div style="padding: 0.75rem 1.25rem; background: var(--bg); border-radius: 6px; border: 1px solid var(--border); text-align: center;">
+      <div style="font-size: 1.5rem; font-weight: 700;">{{ batch.total_items }}</div>
+      <div style="font-size: 0.8rem; color: var(--text-muted); text-transform: uppercase;">Total</div>
+    </div>
+    <div style="padding: 0.75rem 1.25rem; background: #eff6ff; border-radius: 6px; border: 1px solid #bfdbfe; text-align: center;">
+      <div style="font-size: 1.5rem; font-weight: 700; color: #1d4ed8;">{{ batch.pending_count }}</div>
+      <div style="font-size: 0.8rem; color: #1d4ed8; text-transform: uppercase;">Pending</div>
+    </div>
+    <div style="padding: 0.75rem 1.25rem; background: #fef3c7; border-radius: 6px; border: 1px solid #fde68a; text-align: center;">
+      <div style="font-size: 1.5rem; font-weight: 700; color: #92400e;">{{ batch.dropped_count }}</div>
+      <div style="font-size: 0.8rem; color: #92400e; text-transform: uppercase;">Dropped</div>
+    </div>
+    <div style="padding: 0.75rem 1.25rem; background: #dcfce7; border-radius: 6px; border: 1px solid #bbf7d0; text-align: center;">
+      <div style="font-size: 1.5rem; font-weight: 700; color: #15803d;">{{ batch.submitted_count }}</div>
+      <div style="font-size: 0.8rem; color: #15803d; text-transform: uppercase;">Submitted</div>
+    </div>
+  </div>
+</div>
+
+<div class="card">
+  <h3 class="card-title">Parsed Releases</h3>
+  {% if items %}
+    <ul style="list-style: none;">
+      {% for item in items %}
+        <li style="padding: 0.75rem 0; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center;">
+          <div>
+            <strong>Discogs Release #{{ item.discogs_id }}</strong>
+            {% if item.title %}
+              <span> — {{ item.title }}</span>
+            {% endif %}
+            {% if item.artist %}
+              <span style="color: var(--text-muted);"> by {{ item.artist }}</span>
+            {% endif %}
+          </div>
+          <div>
+            <span class="badge" style="background-color: var(--bg); border: 1px solid var(--border); color: var(--text);">
+              {{ item.status }}
+            </span>
+          </div>
+        </li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    <p style="color: var(--text-muted);">No releases found in this batch.</p>
+  {% endif %}
+</div>
+{% endblock %}
