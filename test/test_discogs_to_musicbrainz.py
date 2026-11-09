@@ -213,3 +213,47 @@ def test_discogs_teebee(monkeypatch: MonkeyPatch):
 @pytest.mark.parametrize("given,expected", [("Artist (9)", "Artist"), ("Artist Name 123  (4)", "Artist Name 123")])
 def test_discogs_strip_disambiguation(given: str, expected: str):
     assert discogs_strip_disambiguation(given) == expected
+
+
+def test_discogs_converter_replaces_or_clears_discogs_ids():
+    lookup = MusicBrainzLookUp(TEST_AGENT, db_file=":memory:")
+    # Store a known artist
+    lookup.store(
+        "https://www.discogs.com/artist/100457",
+        "ec22a32b-acab-432e-a88c-ffe6ae68fa16",
+        "artist",
+    )
+    # Mock network call in clear_queue
+    def mock_get_url_resources(resources: list[str]):
+        return []
+
+    def mock_endpoint(release_id: int) -> DiscogsRelease:
+        return load_json(765433)
+
+    lookup.get_url_resources = mock_get_url_resources
+
+    converter = ReleaseConverter(lookup=lookup, auto_env=False)
+    converter._discogs_release_endpoint = mock_endpoint
+
+    release = converter.discogs(765433)
+    assert not isinstance(release, list)
+    assert release.artist_credit is not None
+    assert release.labels is not None
+
+    # Known artist (Noisia) replaced with MBID
+    assert release.artist_credit.names[0].mbid == "ec22a32b-acab-432e-a88c-ffe6ae68fa16"
+
+    # Unknown label, master, and extra artists set to None
+    assert release.release_group is None
+    assert release.labels[0].mbid is None
+
+    # Flattened payload must NOT have any Discogs URLs in mbid fields
+    flat = release.flatten()
+    for key, val in flat.items():
+        if "mbid" in key:
+            assert not str(val).startswith("https://www.discogs.com")
+            assert not str(val).startswith("https://discogs.com")
+            # Should be a valid UUID
+            import re
+            assert re.match(r"[a-z0-9]{8}-[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{12}", str(val))
+

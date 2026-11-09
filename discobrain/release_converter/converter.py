@@ -111,17 +111,18 @@ def discogs_release_status(formats: list[DiscogsFormat]) -> MBReleaseStatus:
         return MBReleaseStatus.BOOTLEG
     return MBReleaseStatus.OFFICIAL
 
-def discogs_date_string(date: str) -> MBDate:
+def discogs_date_string(date: str | None) -> MBDate:
+    if not isinstance(date, str) or not date.strip():
+        return MBDate()
     segments = date.split('-')
-    return MBDate(
-        year=int(segments[0]) if int(segments[0]) else None,
-        month=int(segments[1]) if int(segments[1]) else None,
-        day=int(segments[2]) if int(segments[2]) else None
-    )
+    year = int(segments[0]) if len(segments) > 0 and segments[0].isdigit() and int(segments[0]) else None
+    month = int(segments[1]) if len(segments) > 1 and segments[1].isdigit() and int(segments[1]) else None
+    day = int(segments[2]) if len(segments) > 2 and segments[2].isdigit() and int(segments[2]) else None
+    return MBDate(year=year, month=month, day=day)
 
 
 def discogs_release_events(d: DiscogsRelease) -> list[MBEvent]:
-    date = discogs_date_string(d['released'])
+    date = discogs_date_string(d.get('released'))
     countries = DISCOGS_ISO_COUNTRY_MAPPING.get(d['country'])
     if not countries:
         return [MBEvent(date=date)]

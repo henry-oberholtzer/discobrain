@@ -255,7 +255,7 @@ class MusicBrainzLookUp:
 
     @property
     def db_path(self) -> str:
-        if self.db_file:
+        if self.db_file and str(self.db_file) != ":memory:":
             return str(Path(self.db_file).resolve().absolute())
         return ":memory:"
 
@@ -282,7 +282,7 @@ class MusicBrainzLookUp:
         """
 
     def table_insert(self):
-        return "INSERT INTO cache (url, mbid, relationship, timestamp) VALUES (?, ?, ?, ?)"
+        return "INSERT OR REPLACE INTO cache (url, mbid, relationship, timestamp) VALUES (?, ?, ?, ?)"
 
     @property
     def zulu_timestamp(self):
@@ -317,7 +317,9 @@ class MusicBrainzLookUp:
 
     def get_rel_data(self, data: dict[str, Any]):
         rels = []
-        resource = data["resource"]
+        resource = data.get("resource")
+        if not resource:
+            return rels
         relations = data.get("relations")
         if relations:
             for relation in relations:
@@ -326,30 +328,29 @@ class MusicBrainzLookUp:
                 rels.append((resource, target_mbid, target_type, self.zulu_timestamp))
         return rels
 
-    def _get_url_resources(self, 
-        resources: list[str]):
+    def _get_url_resources(self, resources: list[str]):
         data = []
         for batch in itertools.batched(resources, 100):
             response = self.get("url", { 
-                "resource": resources,
+                "resource": list(batch),
                 "inc": "+".join(self.url_rels)
             })
             if response is not None:
-                if response.get("urls"):
+                if "urls" in response:
                     for url in response["urls"]:
                         data.extend(self.get_rel_data(url))
-                else:
+                elif "resource" in response:
                     data.extend(self.get_rel_data(response))
         return data
 
     def get_url_resources(self, resources: list[str]):
         data = self._get_url_resources(resources)
-        cursor = self.db.cursor()
-        cursor.executemany(self.table_insert(), data)
-        cursor.close()
-        self.db.commit()
+        if data:
+            cursor = self.db.cursor()
+            cursor.executemany(self.table_insert(), data)
+            cursor.close()
+            self.db.commit()
         return data
-
 
     def init_tables(self):
         cursor = self.db.cursor()
@@ -357,9 +358,11 @@ class MusicBrainzLookUp:
         cursor.close()
 
     def get_mbid(self, url: str, relationship: str) -> str | None:
-        # Either immediately returns a query or enqueus it.
         cursor = self.db.cursor()
-        response = cursor.execute(f"SELECT mbid FROM cache WHERE url='{url}' AND relationship='{relationship}'").fetchone()
+        response = cursor.execute(
+            "SELECT mbid FROM cache WHERE url = ? AND relationship = ?",
+            (url, relationship),
+        ).fetchone()
         cursor.close()
         if response:
             return response[0]
@@ -367,37 +370,46 @@ class MusicBrainzLookUp:
 
     def get_by_url(self, url: str) -> str | None:
         cursor = self.db.cursor()
-        response = cursor.execute(f"SELECT mbid FROM cache WHERE url='{url}'").fetchone()
+        response = cursor.execute("SELECT mbid FROM cache WHERE url = ?", (url,)).fetchone()
         cursor.close()
         if response:
             return response[0]
         return None
 
     def clear_queue(self):
-        self.get_url_resources(self.queue)
+        urls = list(self.queue)
+        self.queue = []
+        if urls:
+            self.get_url_resources(urls)
 
     def get_mbids(self, mb_base: MBBase, enqueue: bool = True):
         target_types = (MBMedium, MBTrack, MBLabel, MBRelease, MBArtistCredit, MBName)
         for mb_field in fields(mb_base):
             key = mb_field.name
             value = getattr(mb_base, key)
-            if key in ["mbid", "release_group"] and not re.match(
-                    r'[a-z0-9]{8}-[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{12}'
-                , value) and value.startswith("http"):
-                    if stored_mbid := self.get_by_url(value):
-                        setattr(mb_base, key, stored_mbid)
-                    elif enqueue:
-                        self.queue.append(value)
-                    else:
-                        # Nothing has been found
-                        setattr(mb_base, key, None)
+            if (
+                key in ["mbid", "release_group"]
+                and isinstance(value, str)
+                and not re.match(
+                    r'[a-z0-9]{8}-[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{12}',
+                    value,
+                )
+                and value.startswith("http")
+            ):
+                if stored_mbid := self.get_by_url(value):
+                    setattr(mb_base, key, stored_mbid)
+                elif enqueue:
+                    self.queue.append(value)
+                else:
+                    # Nothing has been found
+                    setattr(mb_base, key, None)
             elif isinstance(value, target_types):
-                self.get_mbids(value)
+                self.get_mbids(value, enqueue=enqueue)
             elif isinstance(value, list):
                 for entry in value:
                     if isinstance(entry, MBArtistCredit):
                         for ename in entry.names:
-                            self.get_mbids(ename)
+                            self.get_mbids(ename, enqueue=enqueue)
                     elif isinstance(entry, target_types):
-                        self.get_mbids(entry)
+                        self.get_mbids(entry, enqueue=enqueue)
 

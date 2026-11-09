@@ -107,3 +107,91 @@ def test_get_url_resources_multiple(monkeypatch: MonkeyPatch):
             ("https://www.discogs.com/label/1", "a0fb31fd-1faa-42fd-9bbe-7da22b83a42e", "label", timestamp),
     ]
 
+
+def test_clear_queue():
+    mb = MusicBrainzLookUp(TEST_AGENT)
+    mb.queue = ["https://www.discogs.com/artist/123", "https://www.discogs.com/label/456"]
+
+    def mock_get_url_resources(resources: list[str]):
+        return []
+
+    mb.get_url_resources = mock_get_url_resources
+    mb.clear_queue()
+    assert mb.queue == []
+
+
+def test_get_mbids_replaces_known_and_clears_unknown():
+    from discobrain.release_converter.musicbrainz import (
+        MBArtistCredit,
+        MBArtistName,
+        MBLabel,
+        MBMedium,
+        MBName,
+        MBRelease,
+        MBTrack,
+    )
+
+    mb = MusicBrainzLookUp(TEST_AGENT)
+    # Store a known artist
+    mb.store("https://www.discogs.com/artist/100", "11111111-1111-1111-1111-111111111111", "artist")
+
+    release = MBRelease(
+        name="Test Album",
+        release_group="https://www.discogs.com/master/999",  # unknown master
+        artist_credit=MBArtistCredit(
+            names=[
+                MBName(name="Known", mbid="https://www.discogs.com/artist/100", artist=MBArtistName(name="Known")),
+                MBName(name="Unknown", mbid="https://www.discogs.com/artist/200", artist=MBArtistName(name="Unknown")),
+            ]
+        ),
+        labels=[
+            MBLabel(name="Unknown Label", mbid="https://www.discogs.com/label/300"),
+        ],
+        mediums=[
+            MBMedium(
+                track=[
+                    MBTrack(
+                        name="Track 1",
+                        artist_credit=MBArtistCredit(
+                            names=[
+                                MBName(name="Unknown Track Artist", mbid="https://www.discogs.com/artist/400")
+                            ]
+                        ),
+                    )
+                ]
+            )
+        ],
+    )
+
+    # First pass: enqueue=True should enqueue unknown URLs
+    mb.get_mbids(release, enqueue=True)
+    assert "https://www.discogs.com/artist/100" not in mb.queue  # known, not enqueued
+    assert "https://www.discogs.com/master/999" in mb.queue
+    assert "https://www.discogs.com/artist/200" in mb.queue
+    assert "https://www.discogs.com/label/300" in mb.queue
+    assert "https://www.discogs.com/artist/400" in mb.queue
+
+    # Known artist is immediately replaced
+    assert release.artist_credit is not None
+    assert release.artist_credit.names[0].mbid == "11111111-1111-1111-1111-111111111111"
+
+    # Second pass: enqueue=False should set unknown URLs to None
+    mb.get_mbids(release, enqueue=False)
+    assert release.release_group is None
+    assert release.artist_credit is not None
+    assert release.labels is not None
+    assert release.mediums is not None
+    assert release.mediums[0].track[0].artist_credit is not None
+    assert release.artist_credit.names[0].mbid == "11111111-1111-1111-1111-111111111111"
+    assert release.artist_credit.names[1].mbid is None
+    assert release.labels[0].mbid is None
+    assert release.mediums[0].track[0].artist_credit.names[0].mbid is None
+
+    # Verify flattened release has no Discogs URLs in mbid fields
+    flat = release.flatten()
+    for key, val in flat.items():
+        if "mbid" in key:
+            assert not str(val).startswith("https://www.discogs.com")
+            assert not str(val).startswith("https://discogs.com")
+
+
