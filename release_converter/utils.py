@@ -1,6 +1,6 @@
 import unicode_blocks
 from guess_language import guess_language
-from isocodes import ISONamespaceRecord, extended_languages, script_names
+from isocodes import ISONamespaceRecord, extended_languages, script_names, countries
 
 
 def guess_iso_15924(text: str) -> str:
@@ -33,3 +33,5 @@ def guess_iso_639_3(text: str) -> str:
         if isinstance(guess, str):
             return extended_languages.get(alpha_2=guess)['alpha_3']
     return ""
+
+

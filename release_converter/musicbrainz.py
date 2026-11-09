@@ -34,6 +34,12 @@ class MBReleaseType(StrEnum):
     OTHER = "Other"
     NONE = ""
 
+class MBReleaseStatus(StrEnum):
+    OFFICIAL = "official"
+    PROMO = "promotion"
+    BOOTLEG = "bootleg"
+    PSUEDO = "pseudo-release"
+
 def mb_dict_factory(data: MutableMapping, parent_key: str = '', sep: str = '.'):
     items: list[tuple[str, str | int]] = []
     for key, value in data.items():
@@ -163,8 +169,6 @@ class MBRelease(MBBase):
     annotation: str | None = None
     barcode: str | None = None
     # ISO 15924 code
-    #script: str | None = None
-    # status {official, promotion, bootleg, pseudo-release}
     status: str | None = None
     packaging: str | None = None
     # Multi line text describing edits made
@@ -204,6 +208,14 @@ class MBRelease(MBBase):
     def script(self) -> str:
         return guess_iso_15924(self._text_sample())
 
+    def flatten(self) -> dict[str, int | str]:
+        flat = super().flatten()
+        if self.language:
+            flat["language"] = self.language
+        if self.script:
+            flat["script"] = self.script
+        return flat
+
 def mb_release_type_from_title(title: str) -> MBReleaseType:
     """
     if ends with 'LP' or 'Album' -> Album
@@ -231,6 +243,8 @@ DB_TABLE_MAPPING = {
         "releasegroup": "release-group-rels"
 }
 
+MUSICBRAINZ_URL_RELS = ["artist-rels", "label-rels", "release-rels", "release-group-rels"]
+
 class MusicBrainzLookUp:
     """
     Look and cache up musicbrainz entities corresponding to a given URL
@@ -240,10 +254,12 @@ class MusicBrainzLookUp:
         db_file: Path | PathLike | str | None = None,
         api_root: str | None = None,
         init_tables: bool = True,
+        url_rels: list[str] | None = None
     ):
         self.user_agent = user_agent
         self.db_file = db_file
         self.api_root = MUSICBRAINZ_API_ROOT if not api_root else api_root
+        self.url_rels = MUSICBRAINZ_URL_RELS if not url_rels else url_rels
         # If a database file is given, create the tables on it if they don't exist
         if init_tables:
             self.init_tables()
@@ -296,7 +312,6 @@ class MusicBrainzLookUp:
 
     def get(self, endpoint: str, params: dict[str, Any]) -> dict[str, Any] | None:
         try:
-            print(params)
             response = self.session.get(
                 urljoin(self.api_root, endpoint,),
                 params={
@@ -327,7 +342,7 @@ class MusicBrainzLookUp:
         for batch in itertools.batched(resources, 100):
             response = self.get("url", { 
                 "resource": resources,
-                "inc": "+".join(DB_TABLE_MAPPING.values())
+                "inc": "+".join(self.url_rels)
             })
             if response is not None:
                 if response.get("urls"):

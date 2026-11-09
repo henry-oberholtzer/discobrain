@@ -87,8 +87,8 @@ def test_release_flatten():
     assert release["comment"] == comment
     assert release["annotation"] == comment
     assert release["barcode"] == barcode
-    assert release["language"] == "English"
-    assert release["script"] == "Latin"
+    assert release["language"] == "eng"
+    assert release["script"] == "Latn"
     assert release["packaging"] == packaging
     assert release["events.0.date.year"] == 1998
     assert release["events.0.date.month"] == 12
