@@ -14,7 +14,12 @@ from flask import (
 )
 
 from . import auth
-from .batch_store import BatchItemRecord, BatchItemStatus, BatchStatus, BatchStore
+from .batch_store import (
+    DEFAULT_BATCH_ID,
+    BatchItemRecord,
+    BatchStatus,
+    BatchStore,
+)
 from .parser import parse_discogs_ids
 from .pipeline import (
     build_converter,
@@ -22,6 +27,7 @@ from .pipeline import (
     process_batch,
     reevaluate_pending_items,
 )
+from .release_converter.musicbrainz import MusicBrainzLookUp
 
 load_dotenv()
 
@@ -30,12 +36,32 @@ app.secret_key = os.getenv("DISCOBRAIN_SECRET_KEY", "dev-secret-key-change-me")
 app.register_blueprint(auth.bp)
 
 
-def get_batch_store() -> BatchStore:
-    db_path = app.config.get("DISCOBRAIN_DB")
+def get_db_path() -> str:
+    db_path = app.config.get("DISCOBRAIN_DB") or os.getenv("DISCOBRAIN_DB")
     if not db_path:
         os.makedirs(app.instance_path, exist_ok=True)
         db_path = os.path.join(app.instance_path, "discobrain.db")
-    return BatchStore(db_path)
+    return db_path
+
+
+def get_batch_store() -> BatchStore:
+    return BatchStore(get_db_path())
+
+
+def get_lookup() -> MusicBrainzLookUp:
+    return get_musicbrainz_lookup(get_db_path())
+
+
+@app.context_processor
+def inject_app_context():
+    store = get_batch_store()
+    active_batch = store.get_or_create_batch()
+    lookup = get_lookup()
+    cache_count = lookup.get_cache_count()
+    return {
+        "active_batch": active_batch,
+        "cache_count": cache_count,
+    }
 
 
 class AppUser(TypedDict):
@@ -88,12 +114,20 @@ def parse():
         return redirect(url_for("index"))
 
     store = get_batch_store()
-    batch_id = store.create_batch()
-    for d_id in discogs_ids:
-        store.add_item(batch_id, discogs_id=d_id)
+    batch = store.get_or_create_batch()
+    batch_id = batch.id
 
-    db_path = app.config.get("DISCOBRAIN_DB")
-    lookup = get_musicbrainz_lookup(db_path)
+    existing_items = store.get_items(batch_id)
+    existing_discogs_ids = {item.discogs_id for item in existing_items}
+
+    added_count = 0
+    for d_id in discogs_ids:
+        if d_id not in existing_discogs_ids:
+            store.add_item(batch_id, discogs_id=d_id)
+            existing_discogs_ids.add(d_id)
+            added_count += 1
+
+    lookup = get_lookup()
     converter = build_converter(lookup=lookup, session_data=dict(session))
     base_url = request.host_url
 
@@ -105,47 +139,57 @@ def parse():
         base_url=base_url,
     )
 
-    flash(f"Processed {len(discogs_ids)} release(s).", "success")
+    if added_count > 0:
+        flash(f"Processed {added_count} release(s).", "success")
+    else:
+        flash("Submitted release(s) are already in your batch.", "info")
     return redirect(url_for("submissions_view", batch_id=batch_id))
 
 
-@app.route("/submissions/<batch_id>")
-def submissions_view(batch_id: str):
+@app.route("/submissions", methods=["GET"])
+@app.route("/submissions/<batch_id>", methods=["GET"])
+def submissions_view(batch_id: str | None = None):
     store = get_batch_store()
-    batch = store.get_batch(batch_id)
+    b_id = batch_id or DEFAULT_BATCH_ID
+    batch = store.get_batch(b_id)
     if not batch:
-        flash(f"Batch '{batch_id}' not found.", "error")
-        return redirect(url_for("index"))
+        if batch_id and batch_id != DEFAULT_BATCH_ID:
+            flash(f"Batch '{batch_id}' not found.", "error")
+            return redirect(url_for("index"))
+        batch = store.get_or_create_batch()
 
-    items = store.get_items(batch_id)
+    items = store.get_items(batch.id)
     return render_template("submissions.html", batch=batch, items=items)
 
 
+@app.route("/submissions/items/<int:item_id>/mark-submitted", methods=["POST"])
 @app.route("/submissions/<batch_id>/items/<int:item_id>/mark-submitted", methods=["POST"])
-def mark_submitted(batch_id: str, item_id: int):
+def mark_submitted(item_id: int, batch_id: str | None = None):
     store = get_batch_store()
-    mbid = request.form.get("mbid")
-    store.update_item_status(item_id, BatchItemStatus.SUBMITTED.value, mbid=mbid)
-    batch = store.get_batch(batch_id)
+    store.complete_item(item_id)
+    b_id = batch_id or DEFAULT_BATCH_ID
+    batch = store.get_batch(b_id)
     if batch and batch.pending_count == 0:
-        store.update_batch_status(batch_id, BatchStatus.COMPLETED.value)
-    flash("Release marked as seeded.", "success")
-    return redirect(url_for("submissions_view", batch_id=batch_id))
+        store.update_batch_status(b_id, BatchStatus.COMPLETED.value)
+    flash("Release marked as submitted.", "success")
+    return redirect(url_for("submissions_view", batch_id=b_id))
 
 
+@app.route("/submissions/next", methods=["GET"])
 @app.route("/submissions/<batch_id>/next", methods=["GET"])
-def submissions_next(batch_id: str):
+def submissions_next(batch_id: str | None = None):
     store = get_batch_store()
-    batch = store.get_batch(batch_id)
+    b_id = batch_id or DEFAULT_BATCH_ID
+    batch = store.get_batch(b_id)
     if not batch:
-        flash(f"Batch '{batch_id}' not found.", "error")
+        flash(f"Batch '{b_id}' not found.", "error")
         return redirect(url_for("index"))
 
-    next_item = store.get_next_pending_item(batch_id)
+    next_item = store.get_next_pending_item(b_id)
     if not next_item:
-        store.update_batch_status(batch_id, BatchStatus.COMPLETED.value)
+        store.update_batch_status(b_id, BatchStatus.COMPLETED.value)
         flash("All releases in this batch have been submitted!", "success")
-        return redirect(url_for("submissions_view", batch_id=batch_id))
+        return redirect(url_for("submissions_view", batch_id=b_id))
 
     mode = request.args.get("mode")
     if mode == "sequential":
@@ -182,8 +226,7 @@ def callback():
         except ValueError:
             discogs_id = None
 
-    db_path = app.config.get("DISCOBRAIN_DB")
-    lookup = get_musicbrainz_lookup(db_path)
+    lookup = get_lookup()
 
     item: BatchItemRecord | None = None
     if discogs_id is not None:
@@ -195,7 +238,7 @@ def callback():
             lookup.store(discogs_url, release_mbid, relationship="release")
 
         if item:
-            store.update_item_status(item.id, BatchItemStatus.SUBMITTED.value, mbid=release_mbid)
+            store.complete_item(item.id)
 
     # Dynamic re-evaluation of remaining pending releases in this batch
     converter = build_converter(lookup=lookup, session_data=dict(session))
@@ -223,3 +266,19 @@ def callback():
         discogs_id=discogs_id,
         release_mbid=release_mbid,
     )
+
+
+@app.route("/batch/clear", methods=["POST"])
+def clear_batch():
+    store = get_batch_store()
+    store.clear_batch()
+    flash("Batch queue cleared successfully.", "success")
+    return redirect(request.referrer or url_for("index"))
+
+
+@app.route("/cache/clear", methods=["POST"])
+def clear_cache():
+    lookup = get_lookup()
+    lookup.clear_cache()
+    flash("MusicBrainz URL/MBID cache cleared successfully.", "success")
+    return redirect(request.referrer or url_for("index"))

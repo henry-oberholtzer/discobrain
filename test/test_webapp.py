@@ -1,7 +1,8 @@
 import io
+import sqlite3
 from unittest.mock import patch
 
-from discobrain import get_batch_store
+from discobrain import get_batch_store, get_db_path, get_lookup
 from discobrain.batch_store import BatchItemStatus, BatchStatus
 from discobrain.pipeline import get_musicbrainz_lookup
 
@@ -110,7 +111,7 @@ def test_submissions_view_renders_batch(client):
     assert f"Import Batch: {batch_id[:8]}" in html
     assert "Through The Eyes Of A Scorpion" in html
     assert "DJ Teebee" in html
-    assert "Dropped Releases (Already in MusicBrainz)" in html
+    assert "Already in MusicBrainz" in html
     assert "https://musicbrainz.org/release/ceccb90b-59f8-4856-ab15-c980ed653b1d" in html
 
 
@@ -144,7 +145,7 @@ def test_submissions_view_renders_seed_forms(client):
     assert 'name="name" value="Through The Eyes Of A Scorpion"' in html
     assert 'name="artist_credit.names.0.name" value="DJ Teebee"' in html
     assert 'Submit to MusicBrainz ↗' in html
-    assert 'Mark as Seeded' in html
+    assert 'Mark as Submitted' in html
 
 
 def test_mark_submitted_action(client):
@@ -159,12 +160,13 @@ def test_mark_submitted_action(client):
     )
     assert resp.status_code == 200
     html = resp.data.decode("utf-8")
-    assert "Release marked as seeded." in html
+    assert "Release marked as submitted." in html
 
     item = store.get_item(item_id)
-    assert item is not None
-    assert item.status == BatchItemStatus.SUBMITTED.value
-    assert item.mbid == "newly-seeded-mbid-123"
+    assert item is None
+    batch = store.get_batch(batch_id)
+    assert batch is not None
+    assert batch.submitted_count == 1
 
 
 def test_submissions_next_renders_seed_redirect(client):
@@ -232,11 +234,12 @@ def test_callback_standalone_success(client, app):
     assert "newly-seeded-mbid-789" in html
     assert "Through The Eyes Of A Scorpion" in html
 
-    # Verify batch item status
+    # Verify batch item is dropped from database upon completion
     item = store.get_item(item_id)
-    assert item is not None
-    assert item.status == BatchItemStatus.SUBMITTED.value
-    assert item.mbid == "newly-seeded-mbid-789"
+    assert item is None
+    batch = store.get_batch(batch_id)
+    assert batch is not None
+    assert batch.submitted_count == 1
 
     # Verify MusicBrainzLookUp SQLite cache
     db_path = app.config.get("DISCOBRAIN_DB")
@@ -262,9 +265,10 @@ def test_callback_sequential_mode_advances_to_next(client):
     )
 
     item1 = store.get_item(item1_id)
-    assert item1 is not None
-    assert item1.status == BatchItemStatus.SUBMITTED.value
-    assert item1.mbid == "mbid-rel-1"
+    assert item1 is None
+    batch = store.get_batch(batch_id)
+    assert batch is not None
+    assert batch.submitted_count == 1
 
     item2 = store.get_item(item2_id)
     assert item2 is not None
@@ -287,6 +291,7 @@ def test_callback_sequential_mode_completes_batch(client):
     batch = store.get_batch(batch_id)
     assert batch is not None
     assert batch.status == BatchStatus.COMPLETED.value
+    assert batch.submitted_count == 1
 
 
 def test_callback_invalid_or_missing_parameters(client):
@@ -350,9 +355,10 @@ def test_end_to_end_sequential_submission_flow(client, app):
     assert resp.headers["Location"].endswith(f"/submissions/{batch_id}/next?mode=sequential")
 
     item1 = store.get_item(item1_id)
-    assert item1 is not None
-    assert item1.status == BatchItemStatus.SUBMITTED.value
-    assert item1.mbid == "mbid-first-111"
+    assert item1 is None
+    batch = store.get_batch(batch_id)
+    assert batch is not None
+    assert batch.submitted_count == 1
 
     # 4. Step 2 of sequential mode
     resp = client.get(resp.headers["Location"])
@@ -370,8 +376,6 @@ def test_end_to_end_sequential_submission_flow(client, app):
     html = resp.data.decode("utf-8")
     assert "All releases in this batch have been successfully submitted!" in html
     assert "Completed" in html
-    assert "https://musicbrainz.org/release/mbid-first-111" in html
-    assert "https://musicbrainz.org/release/mbid-second-222" in html
 
     batch = store.get_batch(batch_id)
     assert batch is not None
@@ -380,9 +384,7 @@ def test_end_to_end_sequential_submission_flow(client, app):
     assert batch.submitted_count == 2
 
     item2 = store.get_item(item2_id)
-    assert item2 is not None
-    assert item2.status == BatchItemStatus.SUBMITTED.value
-    assert item2.mbid == "mbid-second-222"
+    assert item2 is None
 
 
 def test_mark_submitted_completes_batch(client):
@@ -399,3 +401,93 @@ def test_mark_submitted_completes_batch(client):
     assert batch is not None
     assert batch.status == BatchStatus.COMPLETED.value
     assert batch.pending_count == 0
+    assert batch.submitted_count == 1
+    assert store.get_item(item_id) is None
+
+
+def test_resume_banner_on_index_page(client):
+    store = get_batch_store()
+    batch = store.get_or_create_batch()
+    store.add_item(batch.id, 13954, title="Pending Scorpion")
+
+    resp = client.get("/")
+    assert resp.status_code == 200
+    html = resp.data.decode("utf-8")
+    assert "Batch in Progress:" in html
+    assert "Resume Submissions →" in html
+
+
+def test_clear_batch_action(client):
+    store = get_batch_store()
+    batch = store.get_or_create_batch()
+    store.add_item(batch.id, 13954, title="Release 1")
+    store.add_item(batch.id, 38348, title="Release 2")
+
+    resp = client.post("/batch/clear", follow_redirects=True)
+    assert resp.status_code == 200
+    html = resp.data.decode("utf-8")
+    assert "Batch queue cleared successfully." in html
+
+    # Items cleared
+    items = store.get_items(batch.id)
+    assert len(items) == 0
+
+
+def test_clear_cache_action(client, app):
+    db_path = app.config.get("DISCOBRAIN_DB")
+    lookup = get_musicbrainz_lookup(db_path)
+    lookup.store("https://www.discogs.com/release/9999", "mbid-9999", "release")
+    assert lookup.get_cache_count() >= 1
+
+    resp = client.post("/cache/clear", follow_redirects=True)
+    assert resp.status_code == 200
+    html = resp.data.decode("utf-8")
+    assert "MusicBrainz URL/MBID cache cleared successfully." in html
+    assert lookup.get_cache_count() == 0
+
+
+def test_footer_displays_batch_size_and_cache_count(client, app):
+    store = get_batch_store()
+    batch = store.get_or_create_batch()
+    store.add_item(batch.id, 13954, title="Release In Batch")
+
+    db_path = app.config.get("DISCOBRAIN_DB")
+    lookup = get_musicbrainz_lookup(db_path)
+    lookup.store("https://www.discogs.com/release/123", "mbid-123", "release")
+
+    resp = client.get("/")
+    assert resp.status_code == 200
+    html = resp.data.decode("utf-8")
+    assert "in batch" in html
+    assert "mbids cached" in html
+    assert "Clear Batch" in html
+    assert "Clear Cache" in html
+
+
+def test_db_path_consistency_and_cache_table_creation(app, monkeypatch, tmp_path):
+    # Temporarily remove DISCOBRAIN_DB from app.config and env
+    app.config.pop("DISCOBRAIN_DB", None)
+    monkeypatch.delenv("DISCOBRAIN_DB", raising=False)
+
+    # Point instance_path to a temporary directory for isolation
+    monkeypatch.setattr(app, "instance_path", str(tmp_path / "instance"))
+
+    db_path = get_db_path()
+    assert db_path.endswith("discobrain.db")
+    assert db_path != ":memory:"
+
+    store = get_batch_store()
+    lookup = get_lookup()
+
+    # Both store and lookup must point to the same database file
+    assert store.db_path == db_path
+    assert lookup.db_path == db_path
+
+    # Verify that cache table was created on disk
+    conn = sqlite3.connect(db_path)
+    tables = [row[0] for row in conn.cursor().execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()]
+    conn.close()
+
+    assert "batches" in tables
+    assert "batch_items" in tables
+    assert "cache" in tables

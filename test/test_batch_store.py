@@ -158,6 +158,67 @@ def test_add_and_update_raw_data():
     assert updated.raw_data == {"id": 301, "title": "Updated Raw Title", "formats": []}
 
 
+def test_get_or_create_batch():
+    store = BatchStore()
+    b1 = store.get_or_create_batch()
+    assert b1.id == "default"
+    assert b1.submitted_count == 0
+
+    # Calling again returns same batch
+    b2 = store.get_or_create_batch()
+    assert b2.id == "default"
+
+
+def test_complete_item_drops_from_db_and_increments_counter():
+    store = BatchStore()
+    b = store.get_or_create_batch()
+    item_id = store.add_item(b.id, 101, title="Test Release")
+
+    # Before completion: 1 total item, 0 submitted count
+    batch_before = store.get_batch(b.id)
+    assert batch_before is not None
+    assert batch_before.total_items == 1
+    assert batch_before.submitted_count == 0
+
+    # Complete the item
+    store.complete_item(item_id)
+
+    # Item should no longer exist in batch_items
+    assert store.get_item(item_id) is None
+    assert store.get_items(b.id) == []
+
+    # Batch submitted_count should now be 1, total remaining 0
+    batch_after = store.get_batch(b.id)
+    assert batch_after is not None
+    assert batch_after.total_items == 0
+    assert batch_after.pending_count == 0
+    assert batch_after.submitted_count == 1
+
+
+def test_clear_batch_removes_items_and_preserves_submitted_count():
+    store = BatchStore()
+    b = store.get_or_create_batch()
+    item1 = store.add_item(b.id, 101, title="Release 1")
+    store.add_item(b.id, 102, title="Release 2")
+
+    # Complete item1
+    store.complete_item(item1)
+    batch_mid = store.get_batch(b.id)
+    assert batch_mid is not None
+    assert batch_mid.submitted_count == 1
+    assert batch_mid.total_items == 1  # item 2 remains
+
+    # Clear batch
+    store.clear_batch(b.id)
+
+    # All items cleared, but submitted_count preserved
+    batch_cleared = store.get_batch(b.id)
+    assert batch_cleared is not None
+    assert batch_cleared.total_items == 0
+    assert batch_cleared.submitted_count == 1
+    assert store.get_items(b.id) == []
+
+
 def test_file_backed_persistence():
     with tempfile.TemporaryDirectory() as temp_dir:
         db_file = Path(temp_dir) / "test_batches.db"

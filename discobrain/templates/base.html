@@ -208,6 +208,11 @@
         <span>Discobrain</span>
       </a>
       <div class="auth-bar">
+        {% if active_batch and active_batch.pending_count > 0 %}
+          <a href="{{ url_for('submissions_view') }}" class="btn-link" style="color: #93c5fd; font-weight: 500;">
+            Pending Releases ({{ active_batch.pending_count }})
+          </a>
+        {% endif %}
         {% if g.user and g.user.authenticated %}
           <span class="badge badge-auth" title="Authenticated API access (60 requests/min)">
             ● Discogs: Connected ({{ g.user.username }}) · 60/min
@@ -238,7 +243,43 @@
   </main>
 
   <footer>
-    Discobrain
+    <div style="max-width: 1000px; margin: 0 auto; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+      <div style="display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap;">
+        <span>Discobrain</span>
+        {% if active_batch and active_batch.submitted_count > 0 %}
+          <span style="color: var(--text-muted);">·</span>
+          <span style="color: var(--text-muted);">
+            <strong>{{ active_batch.submitted_count }}</strong> release{{ 's' if active_batch.submitted_count != 1 else '' }} submitted
+          </span>
+        {% endif %}
+      </div>
+
+      <div style="display: flex; align-items: center; gap: 1.25rem; flex-wrap: wrap;">
+        {# Batch queue indicator and clear button #}
+        <div style="display: flex; align-items: center; gap: 0.5rem;">
+          <span style="color: var(--text-muted); font-size: 0.8rem;">
+            {{ active_batch.total_items if active_batch else 0 }} in batch
+          </span>
+          <form action="{{ url_for('clear_batch') }}" method="POST" style="margin: 0;" onsubmit="return confirm('Clear the current batch queue? All pending and dropped releases will be removed.');">
+            <button type="submit" class="btn btn-secondary btn-sm" style="padding: 0.2rem 0.5rem; font-size: 0.8rem;">
+              Clear Batch
+            </button>
+          </form>
+        </div>
+
+        {# Cache indicator and clear button #}
+        <div style="display: flex; align-items: center; gap: 0.5rem;">
+          <span style="color: var(--text-muted); font-size: 0.8rem;">
+            {{ cache_count | default(0) }} mbids cached
+          </span>
+          <form action="{{ url_for('clear_cache') }}" method="POST" style="margin: 0;" onsubmit="return confirm('Clear the MusicBrainz URL/MBID cache? Future imports will re-query MusicBrainz.');">
+            <button type="submit" class="btn btn-secondary btn-sm" style="padding: 0.2rem 0.5rem; font-size: 0.8rem;">
+              Clear Cache
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
   </footer>
 </body>
 </html>

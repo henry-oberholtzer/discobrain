@@ -6,8 +6,19 @@
 <div class="card">
   <h2 class="card-title">Batch Import Releases to MusicBrainz</h2>
   <p style="margin-bottom: 1.25rem; color: var(--text-muted);">
-    Paste a list of Discogs release URLs or IDs belowl, each on a new line, or upload a text file.
+    Paste a list of Discogs release URLs or IDs below, each on a new line, or upload a text file.
   </p>
+
+  {% if active_batch and active_batch.pending_count > 0 %}
+    <div class="alert alert-info" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.75rem; margin-bottom: 1.5rem;">
+      <div>
+        <strong>Batch in Progress:</strong> You have <strong>{{ active_batch.pending_count }}</strong> unsubmitted release{{ 's' if active_batch.pending_count != 1 else '' }} in your batch.
+      </div>
+      <a href="{{ url_for('submissions_view') }}" class="btn btn-sm btn-primary">
+        Resume Submissions →
+      </a>
+    </div>
+  {% endif %}
 
   {% if not g.user or not g.user.authenticated %}
     <div class="alert alert-warning" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem;">
