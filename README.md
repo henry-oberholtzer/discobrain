@@ -5,49 +5,93 @@ This is a local web application for easily submitting large amounts of releases 
 It aims to handle as much data conversion as possible before seeding the release, and stores
 connections between artist URLs and IDs on other sites and on MusicBrainz.
 
-The frontend is minimal, with as little JavaScript as possible.
+## Prerequisites
 
-# User Experience
+- **Python**: >= 3.12
+- **uv**: Python package and environment manager ([installation guide](https://docs.astral.sh/uv/))
 
-Currently, the application is limited to importing releases from Discogs, but will eventually
-expand to supporting other sites.
+## Setting Up for Development
 
-### Set Up
+1. **Clone the repository:**
+   ```bash
+   git clone https://github.com/henry-oberholtzer/discobrain.git
+   cd discobrain
+   ```
 
-When the application opens, the main page displays an option to authenticate with Discogs
-to improve API access speeds. The credentials are stored on the browser.
+2. **Install dependencies:**
+   Install project dependencies and development tools using `uv`:
+   ```bash
+   uv sync
+   ```
 
-There is a textbox where a user can paste a list of Discogs URLs or release IDs, with each being on a new line.
+3. **Configure environment variables:**
+   Copy the example environment file:
+   ```bash
+   cp .env.example .env
+   ```
+   Edit `.env` to configure your settings:
+   - `DISCOBRAIN_SECRET_KEY`: Secret key used for Flask session security.
+   - **Discogs Authentication (choose one):**
+     - **Personal Access Token:** Set `DISCOGS_USER_TOKEN` (generate one at [Discogs Developer Settings](https://www.discogs.com/settings/developers)). This raises your Discogs API rate limit from 25 to 60 requests per minute.
+     - **OAuth 1.0a Application:** Set `DISCOGS_CONSUMER_KEY` and `DISCOGS_CONSUMER_SECRET` with the OAuth callback URL set to `http://localhost:5000/discogs/auth`.
+   - `DISCOBRAIN_DB` *(optional)*: Custom path for SQLite database (defaults to `instance/discobrain.db`).
 
-Alternatively, a text file matching the same requirements can be uploaded.
+4. *(Optional)* **Optimize locale data:**
+   Trim unused `isocodes` locale files to reduce disk footprint:
+   ```bash
+   uv run poe iso_free
+   ```
 
-Upon clicking "parse" the submission flow is started.
+## Running Locally
 
-### Backend Work
+1. **To start the Flask development server:**
+   ```bash
+   uv run flask --app discobrain run
+   ```
 
-All given release IDs are checked against MusicBrainz or in the local cache managed by MusicBrainzLookup,
-ones that already exist are dropped from futher processing.
+2. **Open the web application:**
+   Visit [http://localhost:5000](http://localhost:5000) in your browser.
 
-Releases are fetched from Discogs and converted into MBRelease objects with the ReleaseConverter class.
+3. **Using the application:**
+   - Enter Discogs release URLs or numeric IDs into the text area (one per line) or upload a `.txt` file.
+   - Discobrain will pre-filter releases already in MusicBrainz, fetch metadata for unseeded releases, and normalize fields according to MusicBrainz standards.
+   - Seed releases to MusicBrainz individually or step through them sequentially.
 
-### Submission Flow
+## Running Tests & Code Quality Checks
 
-The user is redirected to a page to start the submissions.
+This project uses [poethepoet](https://github.com/nat-n/poethepoet) (`poe`) as a task runner and [pytest](https://docs.pytest.org/) for testing:
 
-The page displays a list with buttons to submit each release processed, opening the seeded data submission in a new tab.
+- **Run the test suite:**
+  ```bash
+  uv run poe test
+  ```
+  *(Or run pytest directly: `uv run pytest`)*
 
-The page also shows releases that have been dropped as they already exist on MusicBrainz, with a direct link to the MB page.
+- **Run a specific test file:**
+  ```bash
+  uv run pytest test/test_webapp.py
+  ```
 
-There is also a button to automatically iterate through all submissions to the MusicBrainz webpage to complete the submission of the seeded data.
+- **Run static type checking:**
+  ```bash
+  uv run poe type
+  ```
+  *(Runs `pyrefly check`)*
 
-Each release is re-evaluated for MB ids before it is seeded, in case a previous release already submitted certain artist IDs.
+- **Run linter with autofixes:**
+  ```bash
+  uv run poe lint
+  ```
+  *(Runs `ruff check --fix`)*
 
-The application recieves notice that the release has been seeded, and stores that in the MusicBrainzLookup cache.
+- **Run the complete validation pipeline:**
+  ```bash
+  uv run poe validate
+  ```
+  *(Runs type checking, linting, and tests in sequence)*
 
-The user is directed to the next MusicBrainz release page with seeded data, and this repeats.
+## AI Disclosure
 
-After completing all submissions, the user is then re-directed to the home page to start again.
+AI models were used to generate code in this repository.
 
-
-
-
+All code has been reviewed manually & responsibility for it is held by the maintainer.
