@@ -148,7 +148,10 @@ def discogs_build_mediums(format: list[DiscogsFormat]) -> list[MBMedium]:
         qty = int(f['qty'])
         medium.format = discogs_format_mapping(f)
         # Add as many of these as listed
-        mediums.extend([deepcopy(medium) for i in range(qty)])
+        if medium.format != "Digital Media":
+            mediums.extend([deepcopy(medium) for i in range(qty)])
+        else:
+            mediums.append(medium)
     return mediums
 
 def mm_ss_to_ms(duration: str) -> int | None:
@@ -201,7 +204,6 @@ def discogs_tracklist(d: DiscogsRelease) -> list[MBMedium]:
     current_medium = 0
     current_index = 0
     for track in tracklist:
-        print(track)
         med = mediums[current_medium]
         if track["type_"] == "heading":
             title = track['title'].strip()
@@ -221,7 +223,8 @@ def discogs_tracklist(d: DiscogsRelease) -> list[MBMedium]:
         # and there must be more mediums we can change to.
         if current_index != 0 and current_medium < len(mediums) - 1:
             last_index = med.track[-1].number
-            if mb_track.number and last_index and mb_track.number[0] != last_index[0]:
+            # Check if the track is numeric, if it's not that means there's likely a multi disc situation
+            if mb_track.number and not mb_track.number.isnumeric() and last_index and mb_track.number[0] != last_index[0]:
                 # If the indices don't start the same, increment the curent medium
                 # If this medium is double sided, divide it by 2
                 if med.format and ("Vinyl" in med.format or "Cassette" in med.format):
