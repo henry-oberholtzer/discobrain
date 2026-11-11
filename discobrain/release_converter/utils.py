@@ -1,4 +1,3 @@
-import re
 
 import unicode_blocks
 from guess_language import guess_language
@@ -35,61 +34,11 @@ def guess_iso_639_3(text: str) -> str:
             return extended_languages.get(alpha_2=guess)['alpha_3']
     return ""
 
-ENG_ARTICLES = {
-    "a",
-    "an",
-    "da",
-    "the"
-}
+from discobrain.guess_case import guess_case
 
-ENG_CONJUGATIONS = {
-    "and",
-    "'n'",
-    "'n",
-    "but",
-    "or",
-    "nor"
-}
-
-ENG_PREPOSITIONS = {
-    "as",
-    "at",
-    "by",
-    "for",
-    "in",
-    "of",
-    "o'",
-    "on",
-    "to",
-    "but",
-    "per",
-    "qua",
-    "re",
-    "up",
-    "via",
-}
-
-# Via MusicBrainz wordChecker.js
-ENG_ETI = {
-    "original mix",
-    "mix",
-    "remix"
-}
-
-LOWERCASE_WORDS = {
-    *ENG_ARTICLES,
-    *ENG_PREPOSITIONS,
-    *ENG_CONJUGATIONS,
-    *ENG_ETI
-}
 
 def mb_title_case(text: str) -> str:
-    def lowercase(matchobj) -> str:
-        return matchobj.group(0).lower()
-    # If it's all uppercase, lowercase, or numeric, skip
-    if text.isupper() or text.isnumeric() or text.islower():
+    if text.isnumeric() or text.islower():
         return text
-    for word in LOWERCASE_WORDS:
-        regex = rf'(?<=[\w\d\s,][\s\(]){word}(?=[\s,\)])'
-        text = re.sub(regex, lowercase, text, flags=re.IGNORECASE)
-    return text
+    return guess_case(text, entity="release", keep_uppercased=True)
+
