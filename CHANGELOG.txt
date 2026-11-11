@@ -1,10 +1,10 @@
 IMPLEMENTED
 - Improve README
 - Improved Titlecase: Re-implement 'GuessCase.js' from MusicBrainz
+- Add License
 
 UPCOMING
 
-- Add License
 - Language Classification fix: Currently misfires often, enable a user-set default language instead.
 - Adding tags to submitted releases: When a release submits, submit its
 tags from Discogs to the MusicBrainz release.
