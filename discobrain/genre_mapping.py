@@ -8,42 +8,42 @@ DISCOGS_ELECTRONIC_STYLE_MAP: dict[frozenset[str], tuple[str, ...]] = {
     # -------------------------------------------------------------------------
     # Compound Style Combinations (Modifiers + Base Genres)
     # -------------------------------------------------------------------------
-    # Acid compounds
+    # Compounds
     frozenset({"acid", "techno"}): ("acid techno",),
+    frozenset({"acid", "breakbeat"}): ("acid breaks",),
+    frozenset({"acid", "breaks"}): ("acid breaks",),
     frozenset({"acid", "house"}): ("acid house",),
     frozenset({"acid", "trance"}): ("acid trance",),
     frozenset({"acid", "jazz"}): ("acid jazz",),
-    # Dub compounds
     frozenset({"dub", "techno"}): ("dub techno",),
-    frozenset({"dub", "house"}): ("dub house",),
     # Ambient compounds
     frozenset({"ambient", "techno"}): ("ambient techno",),
     frozenset({"ambient", "house"}): ("ambient house",),
     frozenset({"ambient", "dub"}): ("ambient dub",),
     # Hard / Dark compounds
-    frozenset({"hard", "techno"}): ("hard techno",),
-    frozenset({"hard", "trance"}): ("hard trance",),
-    frozenset({"hard", "house"}): ("hard house",),
-    frozenset({"dark", "ambient"}): ("dark ambient",),
-    frozenset({"dark", "wave"}): ("darkwave",),
+    frozenset({"hard techno"}): ("hard techno",),
+    frozenset({"hard trance"}): ("hard trance",),
+    frozenset({"hard house"}): ("hard house",),
+    frozenset({"dark ambient"}): ("dark ambient",),
+    frozenset({"darkwave"}): ("darkwave",),
     # Tech compounds
     frozenset({"tech", "house"}): ("tech house",),
     frozenset({"tech", "trance"}): ("tech trance",),
     # Progressive compounds
-    frozenset({"progressive", "house"}): ("progressive house",),
-    frozenset({"progressive", "trance"}): ("progressive trance",),
+    frozenset({"progressive house"}): ("progressive house",),
+    frozenset({"progressive breaks"}): ("progressive breaks",),
+    frozenset({"progressive trance"}): ("progressive trance",),
     # Minimal compounds
     frozenset({"minimal", "techno"}): ("minimal techno",),
     frozenset({"minimal", "house"}): ("microhouse",),
     # Deep compounds
-    frozenset({"deep", "house"}): ("deep house",),
-    frozenset({"deep", "techno"}): ("dub techno",),
+    frozenset({"deep house"}): ("deep house",),
+    frozenset({"deep techno"}): ("deep techno",),
     # -------------------------------------------------------------------------
     # Standalone Discogs Styles -> MusicBrainz Genres
     # -------------------------------------------------------------------------
     # Techno & Subgenres
     frozenset({"techno"}): ("techno",),
-    frozenset({"acid techno"}): ("acid techno",),
     frozenset({"dub techno"}): ("dub techno",),
     frozenset({"minimal techno"}): ("minimal techno",),
     frozenset({"hard techno"}): ("hard techno",),
@@ -65,8 +65,6 @@ DISCOGS_ELECTRONIC_STYLE_MAP: dict[frozenset[str], tuple[str, ...]] = {
     frozenset({"euro house"}): ("euro house",),
     # Drum & Bass / Jungle
     frozenset({"drum n bass"}): ("drum and bass",),
-    frozenset({"drum & bass"}): ("drum and bass",),
-    frozenset({"drum and bass"}): ("drum and bass",),
     frozenset({"jungle"}): ("jungle",),
     frozenset({"halftime"}): ("halftime",),
     frozenset({"breakcore"}): ("breakcore",),
@@ -83,7 +81,6 @@ DISCOGS_ELECTRONIC_STYLE_MAP: dict[frozenset[str], tuple[str, ...]] = {
     frozenset({"trance"}): ("trance",),
     frozenset({"goa trance"}): ("goa trance",),
     frozenset({"psy-trance"}): ("psytrance",),
-    frozenset({"psytrance"}): ("psytrance",),
     frozenset({"progressive trance"}): ("progressive trance",),
     frozenset({"hard trance"}): ("hard trance",),
     frozenset({"tech trance"}): ("tech trance",),
@@ -114,56 +111,70 @@ DISCOGS_ELECTRONIC_STYLE_MAP: dict[frozenset[str], tuple[str, ...]] = {
     frozenset({"euro-disco"}): ("euro-disco",),
     frozenset({"hi-nrg"}): ("hi-nrg",),
     frozenset({"eurodance"}): ("eurodance",),
-    # Hardcore & Industrial
-    frozenset({"hardcore"}): ("hardcore",),
+    # Hardcore
     frozenset({"gabber"}): ("gabber",),
     frozenset({"hardstyle"}): ("hardstyle",),
     frozenset({"speedcore"}): ("speedcore",),
+    # Industrial & EBM
     frozenset({"ebm"}): ("ebm",),
     frozenset({"industrial"}): ("industrial",),
     frozenset({"darkwave"}): ("darkwave",),
     frozenset({"power electronics"}): ("power electronics",),
+    # Jazz like
+    frozenset({"future jazz"}): ("nu jazz",)
 }
 
 # MusicBrainz genre hierarchy: maps subgenres to their parent genres.
 MB_GENRE_PARENTS: dict[str, tuple[str, ...]] = {
-    # Subgenres of Techno
+    # Base electronic genres roll up to 'electronic'
+    "ambient": ("electronic",),
+    "breakbeat": ("electronic",),
+    "techno": ("electronic",),
+    "house": ("electronic",),
+    "trance": ("electronic",),
+    "drum and bass": ("electronic",),
+    "downtempo": ("electronic",),
+    "electro": ("electronic",),
+    "idm": ("electronic",),
+    "breakcore": ("electronic",),
+    "ebm": ("electronic", "industrial"),
+    "synth-pop": ("electronic", "pop"),
+    # Techo
     "acid techno": ("techno",),
-    "dub techno": ("techno", "ambient"),
+    "dub techno": ("techno",),
     "minimal techno": ("techno",),
-    "hard techno": ("techno", "hardcore"),
+    "hard techno": ("techno",),
     "detroit techno": ("techno",),
     "schranz": ("hard techno", "techno"),
     "ambient techno": ("techno", "ambient"),
     "ghettotech": ("techno", "electro"),
-    # Subgenres of House
+    # House
     "acid house": ("house",),
     "deep house": ("house",),
-    "tech house": ("house", "techno"),
+    "tech house": ("house",),
     "progressive house": ("house",),
-    "electro house": ("house", "electro"),
+    "electro house": ("house",),
     "microhouse": ("house", "minimal techno"),
     "tribal house": ("house",),
-    "garage house": ("house", "uk garage"),
+    "garage house": ("house",),
     "ghetto house": ("house",),
-    "italo house": ("house", "italo-disco"),
+    "italo house": ("house",),
     "euro house": ("house", "eurodance"),
-    # Subgenres of Drum & Bass, Jungle, Breakbeat & Garage
-    "jungle": ("drum and bass",),
-    "halftime": ("drum and bass",),
-    "breakcore": ("hardcore", "breakbeat"),
-    "uk garage": ("electronic",),
-    "2-step": ("uk garage",),
-    "dubstep": ("uk garage", "electronic"),
-    "grime": ("uk garage", "electronic"),
-    "footwork": ("electronic",),
-    # Subgenres of Trance
+    # Trance
     "goa trance": ("trance",),
     "psytrance": ("trance",),
     "progressive trance": ("trance",),
-    "hard trance": ("trance", "hardcore"),
+    "hard trance": ("trance",),
     "tech trance": ("trance", "techno"),
     "acid trance": ("trance",),
+    # Subgenres of Drum & Bass, Jungle, Breakbeat & Garage
+    "jungle": ("drum and bass",),
+    "halftime": ("drum and bass",),
+    "uk garage": ("electronic",),
+    "2-step": ("uk garage",),
+    "dubstep": ("electronic",),
+    "grime": ("electronic",),
+    "footwork": ("electronic",),
     # Subgenres of Ambient & Downtempo
     "dark ambient": ("ambient", "industrial"),
     "drone": ("ambient",),
@@ -181,21 +192,9 @@ MB_GENRE_PARENTS: dict[str, tuple[str, ...]] = {
     "hi-nrg": ("disco",),
     "eurodance": ("electronic", "dance"),
     # Subgenres of Hardcore
-    "gabber": ("hardcore",),
-    "speedcore": ("hardcore",),
-    "hardstyle": ("hardcore",),
-    # Base electronic genres roll up to 'electronic'
-    "techno": ("electronic",),
-    "house": ("electronic",),
-    "trance": ("electronic",),
-    "drum and bass": ("electronic",),
-    "breakbeat": ("electronic",),
-    "ambient": ("electronic",),
-    "downtempo": ("electronic",),
-    "electro": ("electronic",),
-    "idm": ("electronic",),
-    "ebm": ("electronic", "industrial"),
-    "synth-pop": ("electronic", "pop"),
+    "gabber": ("hardcore techno",),
+    "speedcore": ("hardcore techno",),
+    "hardstyle": ("hardcore techno",),
 }
 
 
