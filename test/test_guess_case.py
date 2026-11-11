@@ -546,3 +546,22 @@ def test_no_quote_blocks(gc: GuessCase) -> None:
     for inp, expected in tests:
         result = gc.entities["track"].guess(inp)
         assert result == expected
+
+
+def test_acronym_casing(gc: GuessCase) -> None:
+    acronym_tests = [
+        ("D.A.V.E.", "D.A.V.E."),
+        ("d.a.v.e.", "D.A.V.E."),
+        ("D.O.P.", "D.O.P."),
+        ("U.S.A.", "U.S.A."),
+        ("R.E.M.", "R.E.M."),
+        ("D.A.V.E. The Drummer", "D.A.V.E. the Drummer"),
+        ("Made in the U.S.A.", "Made in the U.S.A."),
+    ]
+
+    for inp, expected in acronym_tests:
+        assert guess_case(inp, entity="artist") == expected
+        assert guess_case(inp, entity="release") == expected
+        assert guess_case(inp, entity="track") == expected
+        assert gc.entities["artist"].guess(inp) == expected
+        assert gc.entities["release"].guess(inp) == expected

@@ -410,7 +410,7 @@ class BaseHandler:
 
         if len(tmp) > 2:
             s = "".join(tmp)
-            s = re.sub(r"(\.)*$", ".", s)
+            s = s.rstrip(".") + "."
             self.output.append_space_if_needed()
             self.output.append_word(s)
             self.context.reset_context()
