@@ -13,7 +13,7 @@ from flask import (
     url_for,
 )
 
-from . import auth
+from . import auth, mb_auth
 from .batch_store import (
     DEFAULT_BATCH_ID,
     BatchItemRecord,
@@ -34,6 +34,7 @@ load_dotenv()
 app = Flask(__name__)
 app.secret_key = os.getenv("DISCOBRAIN_SECRET_KEY", "dev-secret-key-change-me")
 app.register_blueprint(auth.bp)
+app.register_blueprint(mb_auth.bp)
 
 
 def get_db_path() -> str:
@@ -70,6 +71,11 @@ class AppUser(TypedDict):
     rate_limit: int
 
 
+class MusicBrainzUser(TypedDict):
+    authenticated: bool
+    username: str | None
+
+
 @app.before_request
 def load_user():
     user: AppUser = {
@@ -90,6 +96,18 @@ def load_user():
         user["username"] = "API Token User"
         user["rate_limit"] = 60
     g.user = user
+
+    mb_user: MusicBrainzUser = {
+        "authenticated": False,
+        "username": None,
+    }
+    if session.get("musicbrainz_access_token"):
+        mb_user["authenticated"] = True
+        mb_user["username"] = session.get("musicbrainz_username") or "MusicBrainz User"
+    elif os.getenv("MUSICBRAINZ_USER_TOKEN"):
+        mb_user["authenticated"] = True
+        mb_user["username"] = os.getenv("MUSICBRAINZ_USERNAME") or "Token User"
+    g.musicbrainz = mb_user
 
 
 @app.route("/")
