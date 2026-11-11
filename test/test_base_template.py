@@ -74,6 +74,7 @@ def test_base_template_rendering(app):
         assert "Test Title - Discobrain" in html
         assert "Discobrain" in html
         assert "Discogs: Not Connected" in html
+        assert "MusicBrainz: Not Connected" in html
         assert "Welcome to Discobrain!" in html
         assert "alert-success" in html
         assert "Main content rendered" in html
