@@ -2,16 +2,17 @@ IMPLEMENTED
 - Improve README
 - Improved Titlecase: Re-implement 'GuessCase.js' from MusicBrainz
 - Add License
+- Batch Management: `Already in MB errors` as a flash instead of persistent to a batch.
+- Language Classification fix: Currently misfires often, enable a user-set default language instead.
 
 UPCOMING
 
-- Language Classification fix: Currently misfires often, enable a user-set default language instead.
 - Adding tags to submitted releases: When a release submits, submit its
 tags from Discogs to the MusicBrainz release.
+
 - Extended Information: Copy notes + Matrix / Runout to annotation
 - Disc titles: Ensure those are copied to discs
 - Multipart Tracks: Parsed properly into single tracks
-- Batch Management: `Already in MB errors` as a flash instead of persistent to a batch.
 - Batch Management: Selective removal of items, without clearing the whole thing.
 - User Config: Add
 - User Config: Discogs API keys
