@@ -44,8 +44,16 @@ def get_musicbrainz_client_credentials() -> tuple[str, str]:
     return client_id, client_secret
 
 
+def get_musicbrainz_access_token() -> str | None:
+    return session.get("musicbrainz_oauth_token")
+
+
+def get_musicbrainz_refresh_token() -> str | None:
+    return session.get("musicbrainz_refresh_token")
+
+
 def is_musicbrainz_authenticated() -> bool:
-    return bool(session.get("musicbrainz_access_token"))
+    return bool(session.get("musicbrainz_oauth_token"))
 
 
 def get_musicbrainz_username() -> str | None:
@@ -53,7 +61,7 @@ def get_musicbrainz_username() -> str | None:
 
 
 def clear_musicbrainz_session() -> None:
-    session.pop("musicbrainz_access_token", None)
+    session.pop("musicbrainz_oauth_token", None)
     session.pop("musicbrainz_refresh_token", None)
     session.pop("musicbrainz_token", None)
     session.pop("musicbrainz_username", None)
@@ -61,20 +69,21 @@ def clear_musicbrainz_session() -> None:
 
 
 def get_musicbrainz_session() -> OAuth2Session | None:
-    access_token = session.get("musicbrainz_access_token")
+    access_token = session.get("musicbrainz_oauth_token")
     if not access_token:
         return None
 
     client_id, client_secret = get_musicbrainz_client_credentials()
+    refresh_token = session.get("musicbrainz_refresh_token")
     token = session.get("musicbrainz_token") or {
         "access_token": access_token,
         "token_type": "Bearer",
-        "refresh_token": session.get("musicbrainz_refresh_token"),
+        "refresh_token": refresh_token,
     }
 
     def token_updater(new_token: dict[str, Any]) -> None:
         session["musicbrainz_token"] = new_token
-        session["musicbrainz_access_token"] = new_token.get("access_token")
+        session["musicbrainz_oauth_token"] = new_token.get("access_token")
         if "refresh_token" in new_token:
             session["musicbrainz_refresh_token"] = new_token.get("refresh_token")
 
@@ -106,50 +115,6 @@ def connect() -> str:
     )
 
 
-@bp.route("/token", methods=["POST"])
-def token_auth() -> Response:
-    token = request.form.get("token", "").strip()
-    if not token:
-        flash("Please enter a valid MusicBrainz Bearer Token.", "error")
-        return redirect(url_for("musicbrainz.connect"))
-
-    try:
-        resp = requests.get(
-            MUSICBRAINZ_USERINFO_URL,
-            headers={
-                "User-Agent": USER_AGENT,
-                "Authorization": f"Bearer {token}",
-            },
-            timeout=10,
-        )
-        if resp.status_code == 200:
-            user_data = resp.json()
-            username = (
-                user_data.get("sub")
-                or user_data.get("username")
-                or user_data.get("name")
-                or "MusicBrainz User"
-            )
-            session["musicbrainz_access_token"] = token
-            session["musicbrainz_username"] = username
-            session.pop("musicbrainz_refresh_token", None)
-            session.pop("musicbrainz_token", None)
-            flash(
-                f"Successfully connected to MusicBrainz as {username}.",
-                "success",
-            )
-            return redirect(url_for("index"))
-        else:
-            flash(
-                "Invalid MusicBrainz Token. Please verify the token.",
-                "error",
-            )
-            return redirect(url_for("musicbrainz.connect"))
-    except requests.RequestException as e:
-        flash(f"Error validating token with MusicBrainz: {e}", "error")
-        return redirect(url_for("musicbrainz.connect"))
-
-
 @bp.route("/login", methods=["GET"])
 @bp.route("/oauth", methods=["GET"])
 def login() -> Response:
@@ -157,12 +122,12 @@ def login() -> Response:
     if not client_id or not client_secret:
         flash(
             "MusicBrainz OAuth requires MUSICBRAINZ_CLIENT_ID and MUSICBRAINZ_CLIENT_SECRET "
-            "in your environment or .env file. Alternatively, connect using an Access Token.",
+            "in your environment or .env file.",
             "warning",
         )
         return redirect(url_for("musicbrainz.connect"))
 
-    access_token = session.get("musicbrainz_access_token")
+    access_token = session.get("musicbrainz_oauth_token")
     if access_token:
         try:
             resp = requests.get(
@@ -238,7 +203,7 @@ def callback() -> Response:
             headers={"User-Agent": USER_AGENT},
         )
         session["musicbrainz_token"] = token
-        session["musicbrainz_access_token"] = token.get("access_token")
+        session["musicbrainz_oauth_token"] = token.get("access_token")
         session["musicbrainz_refresh_token"] = token.get("refresh_token")
 
         resp = mb_oauth.get(

@@ -192,6 +192,8 @@ Configure these in `.env` (or pass via environment):
 - `DISCOGS_USER_TOKEN` / `DISCOGS_API_KEY`: Personal Discogs API token (alternative to OAuth).
 - `DISCOGS_OAUTH_TOKEN`: Stored user OAuth token.
 - `DISCOGS_OAUTH_TOKEN_SECRET`: Stored user OAuth token secret.
+- `MUSICBRAINZ_CLIENT_ID`: MusicBrainz OAuth 2.0 client ID.
+- `MUSICBRAINZ_CLIENT_SECRET`: MusicBrainz OAuth 2.0 client secret.
 
 ---
 

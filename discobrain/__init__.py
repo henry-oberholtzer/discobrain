@@ -101,12 +101,9 @@ def load_user():
         "authenticated": False,
         "username": None,
     }
-    if session.get("musicbrainz_access_token"):
+    if session.get("musicbrainz_oauth_token"):
         mb_user["authenticated"] = True
         mb_user["username"] = session.get("musicbrainz_username") or "MusicBrainz User"
-    elif os.getenv("MUSICBRAINZ_USER_TOKEN"):
-        mb_user["authenticated"] = True
-        mb_user["username"] = os.getenv("MUSICBRAINZ_USERNAME") or "Token User"
     g.musicbrainz = mb_user
 
 
