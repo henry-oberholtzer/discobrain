@@ -283,6 +283,10 @@ class BatchStore:
                 )
                 self._conn.execute("DELETE FROM batch_items WHERE id = ?;", (item_id,))
 
+    def delete_item(self, item_id: int) -> None:
+        with self._conn:
+            self._conn.execute("DELETE FROM batch_items WHERE id = ?;", (item_id,))
+
     def clear_batch(self, batch_id: str = DEFAULT_BATCH_ID) -> None:
         with self._conn:
             self._conn.execute(

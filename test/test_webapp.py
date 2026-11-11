@@ -84,6 +84,54 @@ def test_parse_combined_textarea_and_file(mock_process, client):
     mock_process.assert_called_once()
 
 
+@patch("discobrain.process_batch")
+def test_parse_submission_all_error_does_not_persist_and_flashes_error(mock_process, client):
+    # Simulate process_batch deleting the errored item and returning the error string
+    def side_effect(batch_id, batch_store, lookup, converter, base_url=""):
+        items = batch_store.get_items(batch_id)
+        for item in items:
+            batch_store.delete_item(item.id)
+        return ["Error processing Discogs release 999999: Discogs 404 Not Found"]
+
+    mock_process.side_effect = side_effect
+
+    resp = client.post("/parse", data={"raw_urls": "999999"}, follow_redirects=True)
+    assert resp.status_code == 200
+    html = resp.data.decode("utf-8")
+    assert "Error processing Discogs release 999999: Discogs 404 Not Found" in html
+    assert "Processed" not in html
+
+    store = get_batch_store()
+    batch = store.get_or_create_batch()
+    items = store.get_items(batch.id)
+    assert len(items) == 0
+
+
+@patch("discobrain.process_batch")
+def test_parse_submission_partial_error_only_flashes_and_keeps_valid(mock_process, client):
+    # Simulate process_batch deleting the errored item and keeping the valid one
+    def side_effect(batch_id, batch_store, lookup, converter, base_url=""):
+        items = batch_store.get_items(batch_id)
+        for item in items:
+            if item.discogs_id == 999999:
+                batch_store.delete_item(item.id)
+        return ["Error processing Discogs release 999999: Discogs 404 Not Found"]
+
+    mock_process.side_effect = side_effect
+
+    resp = client.post("/parse", data={"raw_urls": "13954\n999999"}, follow_redirects=True)
+    assert resp.status_code == 200
+    html = resp.data.decode("utf-8")
+    assert "Error processing Discogs release 999999: Discogs 404 Not Found" in html
+    assert "Processed 1 release(s)." in html
+
+    store = get_batch_store()
+    batch = store.get_or_create_batch()
+    items = store.get_items(batch.id)
+    assert len(items) == 1
+    assert items[0].discogs_id == 13954
+
+
 def test_submissions_view_renders_batch(client):
     store = get_batch_store()
     batch_id = store.create_batch()

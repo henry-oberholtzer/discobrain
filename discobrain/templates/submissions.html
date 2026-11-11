@@ -38,12 +38,6 @@
       <div style="font-size: 1.5rem; font-weight: 700; color: #15803d;">{{ batch.submitted_count }}</div>
       <div style="font-size: 0.8rem; color: #15803d; text-transform: uppercase;">Submitted</div>
     </div>
-    {% if batch.error_count > 0 %}
-      <div style="padding: 0.75rem 1.25rem; background: #fee2e2; border-radius: 6px; border: 1px solid #fecaca; text-align: center; min-width: 100px;">
-        <div style="font-size: 1.5rem; font-weight: 700; color: #b91c1c;">{{ batch.error_count }}</div>
-        <div style="font-size: 0.8rem; color: #b91c1c; text-transform: uppercase;">Errors</div>
-      </div>
-    {% endif %}
   </div>
 
   {% if batch.pending_count > 0 %}
@@ -155,31 +149,6 @@
               <span class="badge badge-unauth">Already in MB</span>
             {% endif %}
           </div>
-        </li>
-      {% endfor %}
-    </ul>
-  </div>
-{% endif %}
-
-{# ERROR RELEASES SECTION #}
-{% set error_items = items | selectattr("status", "equalto", "error") | list %}
-{% if error_items %}
-  <div class="card" style="border-left: 4px solid #ef4444;">
-    <h3 class="card-title" style="color: #991b1b;">
-      Conversion Errors ({{ error_items | length }})
-    </h3>
-    <ul style="list-style: none;">
-      {% for item in error_items %}
-        <li style="padding: 0.6rem 0; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem;">
-          <div>
-            <strong>Discogs Release #{{ item.discogs_id }}</strong>
-            <div style="color: var(--danger-text); font-size: 0.85rem; margin-top: 0.25rem;">
-              {{ item.error_message }}
-            </div>
-          </div>
-          <span class="badge" style="background-color: #fee2e2; border: 1px solid #fecaca; color: #991b1b;">
-            Error
-          </span>
         </li>
       {% endfor %}
     </ul>

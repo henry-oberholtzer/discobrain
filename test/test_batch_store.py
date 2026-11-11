@@ -195,6 +195,30 @@ def test_complete_item_drops_from_db_and_increments_counter():
     assert batch_after.submitted_count == 1
 
 
+def test_delete_item_removes_from_db_without_incrementing_submitted():
+    store = BatchStore()
+    b = store.get_or_create_batch()
+    item_id = store.add_item(b.id, 101, title="Errored Release")
+
+    batch_before = store.get_batch(b.id)
+    assert batch_before is not None
+    assert batch_before.total_items == 1
+    assert batch_before.submitted_count == 0
+
+    # Delete item
+    store.delete_item(item_id)
+
+    # Item should no longer exist in batch_items
+    assert store.get_item(item_id) is None
+    assert store.get_items(b.id) == []
+
+    # Submitted count must NOT be incremented
+    batch_after = store.get_batch(b.id)
+    assert batch_after is not None
+    assert batch_after.total_items == 0
+    assert batch_after.submitted_count == 0
+
+
 def test_clear_batch_removes_items_and_preserves_submitted_count():
     store = BatchStore()
     b = store.get_or_create_batch()

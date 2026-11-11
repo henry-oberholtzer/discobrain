@@ -4,7 +4,7 @@ from typing import Any, cast
 
 import requests
 
-from .batch_store import BatchItemRecord, BatchItemStatus, BatchRecord, BatchStore
+from .batch_store import BatchItemRecord, BatchItemStatus, BatchStore
 from .release_converter.constants import USER_AGENT
 from .release_converter.converter import ReleaseConverter
 from .release_converter.discogs import DiscogsRelease
@@ -58,10 +58,12 @@ def process_batch(
     lookup: MusicBrainzLookUp,
     converter: ReleaseConverter,
     base_url: str = "",
-) -> BatchRecord | None:
+) -> list[str]:
     items = batch_store.get_items(batch_id, status=BatchItemStatus.PENDING.value)
     if not items:
-        return batch_store.get_batch(batch_id)
+        return []
+
+    errors: list[str] = []
 
     # 1. Pre-submission Deduplication: Query MusicBrainz for any un-cached release URLs
     release_urls = [f"https://www.discogs.com/release/{item.discogs_id}" for item in items]
@@ -108,13 +110,10 @@ def process_batch(
                 raw_data=raw_release,
             )
         except (requests.RequestException, sqlite3.Error, ValueError, KeyError, RuntimeError) as exc:
-            batch_store.update_item_status(
-                item.id,
-                BatchItemStatus.ERROR.value,
-                error_message=str(exc),
-            )
+            batch_store.delete_item(item.id)
+            errors.append(f"Error processing Discogs release {item.discogs_id}: {exc}")
 
-    return batch_store.get_batch(batch_id)
+    return errors
 
 
 def reevaluate_pending_items(

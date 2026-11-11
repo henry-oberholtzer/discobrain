@@ -131,7 +131,7 @@ def parse():
     converter = build_converter(lookup=lookup, session_data=dict(session))
     base_url = request.host_url
 
-    process_batch(
+    errors = process_batch(
         batch_id=batch_id,
         batch_store=store,
         lookup=lookup,
@@ -139,10 +139,18 @@ def parse():
         base_url=base_url,
     )
 
-    if added_count > 0:
-        flash(f"Processed {added_count} release(s).", "success")
-    else:
+    for err in errors or []:
+        flash(err, "error")
+
+    successful_count = added_count - len(errors or [])
+    if successful_count > 0:
+        flash(f"Processed {successful_count} release(s).", "success")
+    elif added_count == 0:
         flash("Submitted release(s) are already in your batch.", "info")
+
+    batch_record = store.get_batch(batch_id)
+    if batch_record and batch_record.total_items == 0:
+        return redirect(url_for("index"))
     return redirect(url_for("submissions_view", batch_id=batch_id))
 
 

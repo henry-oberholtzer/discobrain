@@ -114,7 +114,7 @@ def test_process_batch_handles_conversion_errors(tmp_path):
     converter = ReleaseConverter(lookup=lookup, auto_env=False)
     converter._discogs_release_endpoint = MagicMock(side_effect=RuntimeError("Discogs 404 Not Found"))
 
-    process_batch(
+    errors = process_batch(
         batch_id=batch_id,
         batch_store=store,
         lookup=lookup,
@@ -123,9 +123,12 @@ def test_process_batch_handles_conversion_errors(tmp_path):
     )
 
     item = store.get_item(item_id)
-    assert item is not None
-    assert item.status == BatchItemStatus.ERROR.value
-    assert "Discogs 404 Not Found" in (item.error_message or "")
+    assert item is None  # Should not persist in the batch
+    assert len(errors) == 1
+    assert "Discogs 404 Not Found" in errors[0]
+    batch = store.get_batch(batch_id)
+    assert batch is not None
+    assert batch.total_items == 0
 
 
 def test_reevaluate_pending_items_populates_newly_cached_mbids(tmp_path):
