@@ -20,12 +20,6 @@ def test_mb_settings_page_renders_without_client_credentials(client, monkeypatch
     assert "OAuth Unavailable" in html
 
 
-def test_mb_connect_redirects_to_settings(client):
-    resp = client.get("/musicbrainz/connect")
-    assert resp.status_code == 302
-    assert resp.headers["Location"].endswith("/settings")
-
-
 def test_mb_settings_page_renders_with_client_credentials(client, monkeypatch):
     monkeypatch.setenv("MUSICBRAINZ_CLIENT_ID", "mb_client_123")
     monkeypatch.setenv("MUSICBRAINZ_CLIENT_SECRET", "mb_secret_456")

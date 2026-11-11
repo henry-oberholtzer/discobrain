@@ -14,12 +14,6 @@ def test_settings_page_renders_without_consumer_keys(client, monkeypatch):
     assert "OAuth Unavailable" in html
 
 
-def test_discogs_connect_redirects_to_settings(client):
-    resp = client.get("/discogs/connect")
-    assert resp.status_code == 302
-    assert resp.headers["Location"].endswith("/settings")
-
-
 def test_settings_page_renders_with_consumer_keys(client, monkeypatch):
     monkeypatch.setenv("DISCOGS_CONSUMER_KEY", "mock_key")
     monkeypatch.setenv("DISCOGS_CONSUMER_SECRET", "mock_secret")

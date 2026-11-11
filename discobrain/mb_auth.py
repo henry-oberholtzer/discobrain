@@ -99,12 +99,6 @@ def get_musicbrainz_session() -> OAuth2Session | None:
     return oauth
 
 
-@bp.route("/", methods=["GET"])
-@bp.route("/connect", methods=["GET"])
-def connect() -> Response:
-    return redirect(url_for("settings"))
-
-
 @bp.route("/login", methods=["GET"])
 @bp.route("/oauth", methods=["GET"])
 def login() -> Response:

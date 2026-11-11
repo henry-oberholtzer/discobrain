@@ -30,12 +30,6 @@ def get_consumer_credentials() -> tuple[str, str]:
     return consumer_key, consumer_secret
 
 
-@bp.route("/", methods=["GET"])
-@bp.route("/connect", methods=["GET"])
-def connect() -> Response:
-    return redirect(url_for("settings"))
-
-
 @bp.route("/token", methods=["POST"])
 def token_auth() -> Response:
     token = request.form.get("token", "").strip()
