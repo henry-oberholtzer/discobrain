@@ -4,6 +4,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 import requests
+from oauthlib.oauth2 import OAuth2Error
 
 from .genre_mapping import map_discogs_electronic_styles
 from .mb_auth import get_musicbrainz_session, is_musicbrainz_authenticated
@@ -110,5 +111,5 @@ def submit_release_tags(
             tags=tags,
             error=f"MusicBrainz returned HTTP {resp.status_code}",
         )
-    except requests.RequestException as e:
+    except (requests.RequestException, OAuth2Error) as e:
         return TagSubmissionResult(status="failed", tags=tags, error=str(e))

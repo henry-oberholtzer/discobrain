@@ -86,6 +86,9 @@ def test_mb_login_initiates_oauth(client, monkeypatch):
         resp = client.get("/musicbrainz/login")
         assert resp.status_code == 302
         assert resp.headers["Location"].startswith("https://musicbrainz.org/oauth2/authorize")
+        mock_oauth.authorization_url.assert_called_once()
+        _, kwargs = mock_oauth.authorization_url.call_args
+        assert kwargs.get("access_type") == "offline"
 
         with client.session_transaction() as sess:
             assert sess["musicbrainz_oauth_state"] == "mock_state_abc"
@@ -180,6 +183,19 @@ def test_mb_helper_functions(app):
         mb_sess = get_musicbrainz_session()
         assert mb_sess is not None
         assert mb_sess.token.get("access_token") == "tok_123"
+        # auto_refresh_url should be None when refresh_token is missing
+        assert mb_sess.auto_refresh_url is None
+
+        session["musicbrainz_refresh_token"] = "ref_456"
+        mb_sess_with_ref = get_musicbrainz_session()
+        assert mb_sess_with_ref is not None
+        # auto_refresh_url requires client credentials and refresh_token
+        from discobrain.mb_auth import MUSICBRAINZ_TOKEN_URL
+        app.config["MUSICBRAINZ_CLIENT_ID"] = "dummy_id"
+        app.config["MUSICBRAINZ_CLIENT_SECRET"] = "dummy_secret"
+        mb_sess_configured = get_musicbrainz_session()
+        assert mb_sess_configured is not None
+        assert mb_sess_configured.auto_refresh_url == MUSICBRAINZ_TOKEN_URL
 
         clear_musicbrainz_session()
         assert is_musicbrainz_authenticated() is False

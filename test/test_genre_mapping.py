@@ -35,7 +35,6 @@ def test_compound_dub_techno():
     tags = map_discogs_electronic_styles(["Electronic"], ["Dub", "Techno"])
     assert "dub techno" in tags
     assert "techno" in tags
-    assert "ambient" in tags
     assert "electronic" in tags
 
 

@@ -87,11 +87,13 @@ def get_musicbrainz_session() -> OAuth2Session | None:
             session["musicbrainz_refresh_token"] = new_token.get("refresh_token")
 
     extra = {"client_id": client_id, "client_secret": client_secret}
+    has_refresh = bool(refresh_token or (isinstance(token, dict) and token.get("refresh_token")))
+    auto_refresh_url = MUSICBRAINZ_TOKEN_URL if (client_id and client_secret and has_refresh) else None
     oauth = OAuth2Session(
         client_id=client_id,
         token=token,
         auto_refresh_kwargs=extra,
-        auto_refresh_url=MUSICBRAINZ_TOKEN_URL if (client_id and client_secret) else None,
+        auto_refresh_url=auto_refresh_url,
         token_updater=token_updater,
     )
     oauth.headers.update({"User-Agent": USER_AGENT})
@@ -143,7 +145,10 @@ def login() -> Response:
         scope=MUSICBRAINZ_SCOPES,
     )
     try:
-        auth_url, state = mb_oauth.authorization_url(MUSICBRAINZ_AUTHORIZE_URL)
+        auth_url, state = mb_oauth.authorization_url(
+            MUSICBRAINZ_AUTHORIZE_URL,
+            access_type="offline",
+        )
         session["musicbrainz_oauth_state"] = state
         return redirect(auth_url)
     except (OAuth2Error, ValueError, requests.RequestException) as e:

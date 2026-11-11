@@ -118,6 +118,25 @@ def test_submit_release_tags_request_exception():
     assert "Connection timeout" in res.error
 
 
+def test_submit_release_tags_oauth2_error():
+    from oauthlib.oauth2 import InvalidClientIdError, TokenExpiredError
+
+    mock_session = MagicMock()
+    mock_session.post.side_effect = InvalidClientIdError("Required parameter is missing: refresh_token")
+
+    res = submit_release_tags("mbid_123", ["Electronic"], session=mock_session)
+    assert res.status == "failed"
+    assert res.error is not None
+    assert "refresh_token" in res.error
+
+    # Also test TokenExpiredError
+    mock_session.post.side_effect = TokenExpiredError("token_expired")
+    res_expired = submit_release_tags("mbid_123", ["Electronic"], session=mock_session)
+    assert res_expired.status == "failed"
+    assert res_expired.error is not None
+    assert "token_expired" in res_expired.error
+
+
 def test_callback_with_tags_authenticated(client, monkeypatch):
     from discobrain import get_batch_store
 
