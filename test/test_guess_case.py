@@ -1,3 +1,12 @@
+"""
+Port of the MusicBrainz GuessCase test suite.
+
+Original JavaScript test suite:
+Copyright (C) 2013-2024 MetaBrainz Foundation and contributors
+Source: https://github.com/metabrainz/musicbrainz-server/blob/master/root/static/scripts/tests/GuessCase.js
+Licensed under GPL-2.0-or-later.
+"""
+
 from __future__ import annotations
 
 import pytest
