@@ -162,7 +162,7 @@ discobrain/
 
 ### `discobrain.release_converter.utils`
 - `mb_title_case(text)`: Lowercases standard English articles, prepositions, conjunctions, and ETI words ("remix", "mix") when present inside titles according to MusicBrainz style guidelines.
-- `guess_iso_639_3(text)`: Language code detection based on `guess_language_spirit`.
+- `guess_iso_639_3(text)`: Language code detection based on `lingua-language-detector` (`lingua-py`), defaulting to a curated subset of 7 languages (English, French, German, Dutch, Italian, Spanish, Japanese) with support for custom language configuration.
 - `guess_iso_15924(text)`: Script code detection based on Unicode character block distributions (e.g., `Latn`).
 
 ### `discobrain.auth`

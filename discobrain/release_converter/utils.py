@@ -1,7 +1,21 @@
+from collections.abc import Sequence
+from functools import lru_cache
 
 import unicode_blocks
-from guess_language import guess_language
-from isocodes import ISONamespaceRecord, extended_languages, script_names
+from isocodes import ISONamespaceRecord, script_names
+from lingua import Language, LanguageDetector, LanguageDetectorBuilder
+
+from discobrain.guess_case import guess_case
+
+DEFAULT_LANGUAGES: tuple[Language, ...] = (
+    Language.ENGLISH,
+    Language.FRENCH,
+    Language.GERMAN,
+    Language.DUTCH,
+    Language.ITALIAN,
+    Language.SPANISH,
+    Language.JAPANESE,
+)
 
 
 def guess_iso_15924(text: str) -> str:
@@ -27,18 +41,43 @@ def guess_iso_15924(text: str) -> str:
     return ""
 
 
-def guess_iso_639_3(text: str) -> str:
-    if len(text) > 20:
-        guess = guess_language(text)
-        if isinstance(guess, str):
-            return extended_languages.get(alpha_2=guess)['alpha_3']
-    return ""
+@lru_cache(maxsize=8)
+def _build_detector(languages: tuple[Language, ...]) -> LanguageDetector:
+    return LanguageDetectorBuilder.from_languages(*languages).build()
 
-from discobrain.guess_case import guess_case
+
+def get_language_detector(
+    languages: Sequence[Language] | None = None,
+) -> LanguageDetector:
+    """
+    Returns a cached LanguageDetector configured with the specified languages
+    (or DEFAULT_LANGUAGES if not specified).
+    """
+    langs = tuple(languages) if languages is not None else DEFAULT_LANGUAGES
+    return _build_detector(langs)
+
+
+def guess_iso_639_3(
+    text: str,
+    detector: LanguageDetector | None = None,
+    languages: Sequence[Language] | None = None,
+) -> str:
+    """
+    Guesses the ISO 639-3 3-letter language code of the input text.
+    Returns an empty string if no language is detected or text is blank.
+    """
+    cleaned = text.strip()
+    if not cleaned:
+        return ""
+    if detector is None:
+        detector = get_language_detector(languages)
+    detected = detector.detect_language_of(cleaned)
+    if detected:
+        return detected.iso_code_639_3.name.lower()
+    return ""
 
 
 def mb_title_case(text: str) -> str:
     if text.isnumeric() or text.islower():
         return text
     return guess_case(text, entity="release", keep_uppercased=True)
-
