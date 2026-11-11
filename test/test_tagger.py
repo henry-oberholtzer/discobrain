@@ -16,13 +16,24 @@ def test_extract_discogs_tags_empty():
     assert extract_discogs_tags({"genres": [], "styles": []}) == []
 
 
-def test_extract_discogs_tags_combined_and_deduplicated():
+def test_extract_discogs_tags_non_electronic_fallback():
     raw_data = {
-        "genres": ["Electronic", "Rock", " Electronic "],
-        "styles": ["Drum n Bass", "rock", "Jungle", "", "   "],
+        "genres": ["Rock", " Rock "],
+        "styles": ["Indie Rock", "rock", "Alternative", "", "   "],
     }
     tags = extract_discogs_tags(raw_data)
-    assert tags == ["Electronic", "Rock", "Drum n Bass", "Jungle"]
+    assert tags == ["Rock", "Indie Rock", "Alternative"]
+
+
+def test_extract_discogs_tags_electronic_mapped():
+    raw_data = {
+        "genres": ["Electronic"],
+        "styles": ["Acid", "Techno"],
+    }
+    tags = extract_discogs_tags(raw_data)
+    assert "acid techno" in tags
+    assert "techno" in tags
+    assert "electronic" in tags
 
 
 def test_build_tag_submission_xml():
@@ -127,7 +138,7 @@ def test_callback_with_tags_authenticated(client, monkeypatch):
         from discobrain.tagger import TagSubmissionResult
         mock_submit.return_value = TagSubmissionResult(
             status="submitted",
-            tags=["Electronic", "Drum n Bass"],
+            tags=["drum and bass", "electronic"],
         )
 
         resp = client.get(
@@ -136,9 +147,9 @@ def test_callback_with_tags_authenticated(client, monkeypatch):
         assert resp.status_code == 200
         html = resp.data.decode("utf-8")
         assert "Tags Submitted to MusicBrainz:" in html
-        assert "Electronic" in html
-        assert "Drum n Bass" in html
-        mock_submit.assert_called_once_with("new-seeded-mbid-001", ["Electronic", "Drum n Bass"])
+        assert "drum and bass" in html
+        assert "electronic" in html
+        mock_submit.assert_called_once_with("new-seeded-mbid-001", ["drum and bass", "electronic"])
 
 
 def test_callback_with_tags_unauthenticated(client):
