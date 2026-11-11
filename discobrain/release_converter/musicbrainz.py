@@ -18,7 +18,9 @@ from isocodes import countries
 from requests.exceptions import HTTPError
 from requests_ratelimiter import LimiterSession
 
-from .utils import guess_iso_639_3, guess_iso_15924, mb_title_case
+from discobrain.guess_case import guess_case
+
+from .utils import guess_iso_639_3, guess_iso_15924
 
 MUSICBRAINZ_API_ROOT = "https://musicbrainz.org/ws/2/"
 
@@ -63,6 +65,7 @@ class MBBase:
     TITLE_FIELDS: ClassVar[list[str]] = ["name"]
     COUNTRY_FIELDS: ClassVar[list[str]] = ["country"]
     BARCODE_FIELDS: ClassVar[list[str]] = ["barcode"]
+    GUESS_CASE_ENTITY: ClassVar[str | None] = None
 
     def flatten(self) -> dict[str, int | str]:
         return mb_dict_factory(dataclasses.asdict(self))
@@ -73,7 +76,10 @@ class MBBase:
         """
         if isinstance(val, str):
             if prop in self.TITLE_FIELDS:
-                return super().__setattr__(prop, mb_title_case(val))
+                entity = self.GUESS_CASE_ENTITY or "release"
+                return super().__setattr__(
+                    prop, guess_case(val, entity=entity, keep_uppercased=True)
+                )
             # Normalize country names to ISO names
             elif prop in self.COUNTRY_FIELDS:
                 result = countries.by_name_dict.get(val)
@@ -86,10 +92,12 @@ class MBBase:
 
 @dataclass
 class MBArtistName(MBBase):
+    GUESS_CASE_ENTITY: ClassVar[str | None] = "artist"
     name: str | None = None
 
 @dataclass
 class MBName(MBBase):
+    GUESS_CASE_ENTITY: ClassVar[str | None] = "artist"
     mbid: str | None = None
     name: str | None = None
     artist: MBArtistName | None = None
@@ -101,6 +109,7 @@ class MBArtistCredit(MBBase):
 
 @dataclass
 class MBTrack(MBBase):
+    GUESS_CASE_ENTITY: ClassVar[str | None] = "track"
     name: str | None = None
     number: str | None = None
     # MBID
@@ -110,12 +119,14 @@ class MBTrack(MBBase):
 
 @dataclass
 class MBMedium(MBBase):
+    GUESS_CASE_ENTITY: ClassVar[str | None] = "release"
     track: list[MBTrack] = field(default_factory=list)
     format: str | None = None
     name: str | None = None
 
 @dataclass
 class MBLabel(MBBase):
+    GUESS_CASE_ENTITY: ClassVar[str | None] = "label"
     mbid: str | None = None
     catalog_number: str | None = None
     name: str | None = None
@@ -144,6 +155,7 @@ class MBRelease(MBBase):
     then fetches and converts it to a relevant MusicBrainz
     new release format.
     """
+    GUESS_CASE_ENTITY: ClassVar[str | None] = "release"
     # non optional
     name: str | None = None
     # URL for getting source data

@@ -17,7 +17,7 @@ from discobrain.release_converter.utils import mb_title_case
 
 def test_post_flatten():
     artist_name = MBArtistName(name="name").flatten()
-    assert artist_name["name"] == "name"
+    assert artist_name["name"] == "Name"
 
 def test_flatten_none():
     artist_name = MBArtistName().flatten()
@@ -32,9 +32,9 @@ def test_flatten_list():
             ),
         MBName(name="name_two")
     ]).flatten()
-    assert names["names.0.name"] == "name_one"
+    assert names["names.0.name"] == "Name_one"
     assert names["names.0.join_phrase"] == " & "
-    assert names["names.1.name"] == "name_two"
+    assert names["names.1.name"] == "Name_two"
 
 def test_release_flatten():
     name = "It's The Release Name"
@@ -98,10 +98,10 @@ def test_release_flatten():
     assert release["labels.0.catalog_number"] == "TEST 123"
     assert release["labels.0.name"] == "LABEL NAME"
     assert release["artist_credit.names.0.mbid"] == "1234"
-    assert release["artist_credit.names.0.name"] == "name_one"
+    assert release["artist_credit.names.0.name"] == "Name_one"
     assert release["artist_credit.names.0.join_phrase"] == " & "
     assert release["artist_credit.names.0.artist.name"] == "Artist Name"
-    assert release["artist_credit.names.1.name"] == "name_two"
+    assert release["artist_credit.names.1.name"] == "Name_two"
     assert release["mediums.0.format"] == "Vinyl"
     assert release["mediums.0.name"] == "Medium Name"
     assert release["mediums.0.track.0.name"] == "Track One"
@@ -109,10 +109,10 @@ def test_release_flatten():
     assert release["mediums.0.track.0.recording"] == "fghj"
     assert release["mediums.0.track.0.length"] == 120
     assert release["mediums.0.track.0.artist_credit.names.0.mbid"] == "1234"
-    assert release["mediums.0.track.0.artist_credit.names.0.name"] == "name_one"
+    assert release["mediums.0.track.0.artist_credit.names.0.name"] == "Name_one"
     assert release["mediums.0.track.0.artist_credit.names.0.join_phrase"] == " & "
     assert release["mediums.0.track.0.artist_credit.names.0.artist.name"] == "Artist Name"
-    assert release["mediums.0.track.0.artist_credit.names.1.name"] == "name_two"
+    assert release["mediums.0.track.0.artist_credit.names.1.name"] == "Name_two"
     assert release["mediums.1.format"] == "CD"
 
 def test_country_known():
@@ -138,4 +138,21 @@ def test_country_unknown():
 ])
 def test_titlecase(text: str, expected: str):
     assert mb_title_case(text) == expected
+
+
+def test_mb_base_entity_guess_case():
+    artist = MBArtistName(name="the prodigy & tom morello")
+    assert artist.name == "The Prodigy & Tom Morello"
+
+    name_entry = MBName(name="dj shadow")
+    assert name_entry.name == "DJ Shadow"
+
+    label = MBLabel(name="da! heard it records")
+    assert label.name == "Da! Heard It Records"
+
+    track = MBTrack(name="some song (club mix)")
+    assert track.name == "Some Song (club mix)"
+
+    release = MBRelease(name="all the piano sonatas")
+    assert release.name == "All the Piano Sonatas"
 
