@@ -5,6 +5,7 @@ from typing import Any
 
 import requests
 
+from .genre_mapping import map_discogs_electronic_styles
 from .mb_auth import get_musicbrainz_session, is_musicbrainz_authenticated
 
 MUSICBRAINZ_TAG_URL = "https://musicbrainz.org/ws/2/tag"
@@ -19,12 +20,22 @@ class TagSubmissionResult:
 
 
 def extract_discogs_tags(raw_data: Mapping[str, Any] | None) -> list[str]:
-    """Extract and deduplicate genres and styles from Discogs release payload."""
+    """Extract and map tags from Discogs release payload to MusicBrainz genres.
+
+    If the release contains 'Electronic' genre, applies the Electronic style and
+    compound mapping along with parent genre inheritance. Otherwise, falls back
+    to raw genres and styles.
+    """
     if not raw_data:
         return []
 
     genres = raw_data.get("genres") or []
     styles = raw_data.get("styles") or []
+
+    # Map Electronic styles to MusicBrainz genres
+    mapped_tags = map_discogs_electronic_styles(genres, styles)
+    if mapped_tags:
+        return mapped_tags
 
     tags: list[str] = []
     seen: set[str] = set()
