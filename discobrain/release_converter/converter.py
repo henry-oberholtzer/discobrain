@@ -199,7 +199,17 @@ def discogs_tracklist(d: DiscogsRelease) -> list[MBMedium]:
     album_artist = build_artists(d['artists'])
     current_side = 0
     current_medium = 0
-    for idx, track in enumerate(tracklist):
+    current_index = 0
+    for track in tracklist:
+        print(track)
+        med = mediums[current_medium]
+        if track["type_"] == "heading":
+            title = track['title'].strip()
+            if med.name:
+                med.name = f"{med.name} / {title}"
+            else:
+                med.name = title
+            continue
         mb_track = MBTrack(
             name=track['title'],
             number=track['position'],
@@ -209,8 +219,7 @@ def discogs_tracklist(d: DiscogsRelease) -> list[MBMedium]:
 
         # The current medium must have a track to be eligible to change
         # and there must be more mediums we can change to.
-        med = mediums[current_medium]
-        if idx != 0 and current_medium < len(mediums):
+        if current_index != 0 and current_medium < len(mediums) - 1:
             last_index = med.track[-1].number
             if mb_track.number and last_index and mb_track.number[0] != last_index[0]:
                 # If the indices don't start the same, increment the curent medium
@@ -242,6 +251,8 @@ def discogs_tracklist(d: DiscogsRelease) -> list[MBMedium]:
             mediums[current_medium].track = [mb_track]
         elif mediums[current_medium].track:
             mediums[current_medium].track.append(mb_track)
+        # Increment the index count
+        current_index += 1
 
     return mediums
 

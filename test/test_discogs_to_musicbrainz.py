@@ -113,6 +113,73 @@ def test_release_disambiguation(given: list[DiscogsFormat], expected: str):
                 )
             )
         ])]
+    ),
+    (
+        load_json(199467),
+        [
+            MBMedium(
+                format='12" Vinyl',
+                name="This Side (TW12757) / Other Side (TW12758)",
+                track=[
+                    MBTrack(
+                        name="Let Me Be Your Underwear (Superstar mix)",
+                        number="A1",
+                        length=540000,
+                        artist_credit=MBArtistCredit(
+                            names=[
+                                MBName(
+                                    name="Club 69",
+                                    mbid="https://www.discogs.com/artist/216",
+                                    artist=MBArtistName(name="Club 69")
+                                )
+                            ]
+                            )
+                    ),
+                    MBTrack(
+                        name="Let Me Be Your Underwear (vocal club mix)",
+                        number="A2",
+                        length=(5*60+35)*1000,
+                        artist_credit=MBArtistCredit(
+                            names=[
+                                MBName(
+                                    name="Club 69",
+                                    mbid="https://www.discogs.com/artist/216",
+                                    artist=MBArtistName(name="Club 69")
+                                )
+                            ]
+                            )
+                    ),
+                    MBTrack(
+                        name="Always Unique (Peter's Disko Trip)",
+                        number="B1",
+                        length=(7*60+57)*1000,
+                        artist_credit=MBArtistCredit(
+                            names=[
+                                MBName(
+                                    name="Club 69",
+                                    mbid="https://www.discogs.com/artist/216",
+                                    artist=MBArtistName(name="Club 69")
+                                )
+                            ]
+                            )
+                    ),
+                    MBTrack(
+                        name="Always Unique (Cevin's Disko Trip)",
+                        number="B2",
+                        length=(6*60+15)*1000,
+                        artist_credit=MBArtistCredit(
+                            names=[
+                                MBName(
+                                    name="Club 69",
+                                    mbid="https://www.discogs.com/artist/216",
+                                    artist=MBArtistName(name="Club 69")
+                                )
+                            ]
+                            )
+                    )
+                ]
+            )
+        ]
     )
 ])
 def test_discogs_tracklist(given: DiscogsRelease, expected: list[MBMedium]):
