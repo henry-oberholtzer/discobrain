@@ -37,6 +37,19 @@ class BatchRecord:
 
 
 @dataclass
+class SubmittedReleaseRecord:
+    id: int
+    batch_id: str
+    discogs_id: int
+    mbid: str | None = None
+    artist: str | None = None
+    title: str | None = None
+    year: int | None = None
+    format: str | None = None
+    submitted_at: str = ""
+
+
+@dataclass
 class BatchItemRecord:
     id: int
     batch_id: str
@@ -113,6 +126,25 @@ class BatchStore:
             )
             self._conn.execute(
                 "CREATE INDEX IF NOT EXISTS idx_batch_items_status ON batch_items(batch_id, status);"
+            )
+            self._conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS submitted_releases (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    batch_id TEXT NOT NULL,
+                    discogs_id INTEGER NOT NULL,
+                    mbid TEXT,
+                    artist TEXT,
+                    title TEXT,
+                    year INTEGER,
+                    format TEXT,
+                    submitted_at TEXT NOT NULL,
+                    FOREIGN KEY(batch_id) REFERENCES batches(id) ON DELETE CASCADE
+                );
+                """
+            )
+            self._conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_submitted_releases_batch_id ON submitted_releases(batch_id);"
             )
 
     def create_batch(self, batch_id: str | None = None) -> str:
@@ -198,7 +230,13 @@ class BatchStore:
         )
         counts = counts_cursor.fetchone()
         row_keys = set(row.keys())
-        submitted = row["submitted_count"] if "submitted_count" in row_keys else 0
+        sub_cursor = self._conn.execute(
+            "SELECT COUNT(*) as sub_cnt FROM submitted_releases WHERE batch_id = ?;",
+            (batch_id,),
+        )
+        sub_row = sub_cursor.fetchone()
+        sub_table_cnt = sub_row["sub_cnt"] if sub_row else 0
+        submitted = max(row["submitted_count"] if "submitted_count" in row_keys else 0, sub_table_cnt)
 
         return BatchRecord(
             id=row["id"],
@@ -269,19 +307,109 @@ class BatchStore:
         row = cursor.fetchone()
         return self._row_to_item(row) if row else None
 
-    def complete_item(self, item_id: int) -> None:
+    def complete_item(self, item_id: int, mbid: str | None = None) -> None:
         with self._conn:
             cursor = self._conn.execute(
-                "SELECT batch_id FROM batch_items WHERE id = ?;", (item_id,)
+                """
+                SELECT batch_id, discogs_id, mbid, title, artist, format, year
+                FROM batch_items
+                WHERE id = ?;
+                """,
+                (item_id,),
             )
             row = cursor.fetchone()
             if row:
                 batch_id = row["batch_id"]
+                discogs_id = row["discogs_id"]
+                final_mbid = mbid if mbid is not None else row["mbid"]
+                artist = row["artist"]
+                title = row["title"]
+                year = row["year"]
+                fmt = row["format"]
+                now = self._now_iso()
+
+                self._conn.execute(
+                    """
+                    INSERT INTO submitted_releases (
+                        batch_id, discogs_id, mbid, artist, title, year, format, submitted_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?);
+                    """,
+                    (batch_id, discogs_id, final_mbid, artist, title, year, fmt, now),
+                )
                 self._conn.execute(
                     "UPDATE batches SET submitted_count = submitted_count + 1 WHERE id = ?;",
                     (batch_id,),
                 )
                 self._conn.execute("DELETE FROM batch_items WHERE id = ?;", (item_id,))
+
+    def record_submitted_release(
+        self,
+        batch_id: str,
+        discogs_id: int,
+        *,
+        mbid: str | None = None,
+        artist: str | None = None,
+        title: str | None = None,
+        year: int | None = None,
+        format: str | None = None,
+    ) -> int:
+        now = self._now_iso()
+        with self._conn:
+            cursor = self._conn.execute(
+                """
+                INSERT INTO submitted_releases (
+                    batch_id, discogs_id, mbid, artist, title, year, format, submitted_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?);
+                """,
+                (batch_id, discogs_id, mbid, artist, title, year, format, now),
+            )
+            self._conn.execute(
+                "UPDATE batches SET submitted_count = submitted_count + 1 WHERE id = ?;",
+                (batch_id,),
+            )
+            return cursor.lastrowid or 0
+
+    def get_submitted_releases(
+        self, batch_id: str | None = None
+    ) -> list[SubmittedReleaseRecord]:
+        if batch_id:
+            cursor = self._conn.execute(
+                """
+                SELECT id, batch_id, discogs_id, mbid, artist, title, year, format, submitted_at
+                FROM submitted_releases
+                WHERE batch_id = ?
+                ORDER BY id DESC;
+                """,
+                (batch_id,),
+            )
+        else:
+            cursor = self._conn.execute(
+                """
+                SELECT id, batch_id, discogs_id, mbid, artist, title, year, format, submitted_at
+                FROM submitted_releases
+                ORDER BY id DESC;
+                """
+            )
+        rows = cursor.fetchall()
+        return [
+            SubmittedReleaseRecord(
+                id=r["id"],
+                batch_id=r["batch_id"],
+                discogs_id=r["discogs_id"],
+                mbid=r["mbid"],
+                artist=r["artist"],
+                title=r["title"],
+                year=r["year"],
+                format=r["format"],
+                submitted_at=r["submitted_at"],
+            )
+            for r in rows
+        ]
+
+    def get_total_submitted_count(self) -> int:
+        cursor = self._conn.execute("SELECT COUNT(*) as cnt FROM submitted_releases;")
+        row = cursor.fetchone()
+        return row["cnt"] if row else 0
 
     def delete_item(self, item_id: int) -> None:
         with self._conn:

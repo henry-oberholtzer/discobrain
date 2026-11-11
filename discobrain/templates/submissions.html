@@ -34,10 +34,17 @@
       <div style="font-size: 1.5rem; font-weight: 700; color: #92400e;">{{ batch.dropped_count }}</div>
       <div style="font-size: 0.8rem; color: #92400e; text-transform: uppercase;">Dropped</div>
     </div>
-    <div style="padding: 0.75rem 1.25rem; background: #dcfce7; border-radius: 6px; border: 1px solid #bbf7d0; text-align: center; min-width: 100px;">
-      <div style="font-size: 1.5rem; font-weight: 700; color: #15803d;">{{ batch.submitted_count }}</div>
-      <div style="font-size: 0.8rem; color: #15803d; text-transform: uppercase;">Submitted</div>
-    </div>
+    {% if batch.submitted_count > 0 %}
+      <a href="{{ url_for('submitted_releases', batch_id=batch.id) }}" style="text-decoration: none; padding: 0.75rem 1.25rem; background: #dcfce7; border-radius: 6px; border: 1px solid #bbf7d0; text-align: center; min-width: 100px; display: block;" title="View submitted releases in this batch">
+        <div style="font-size: 1.5rem; font-weight: 700; color: #15803d;">{{ batch.submitted_count }}</div>
+        <div style="font-size: 0.8rem; color: #15803d; text-transform: uppercase;">Submitted ↗</div>
+      </a>
+    {% else %}
+      <div style="padding: 0.75rem 1.25rem; background: #dcfce7; border-radius: 6px; border: 1px solid #bbf7d0; text-align: center; min-width: 100px;">
+        <div style="font-size: 1.5rem; font-weight: 700; color: #15803d;">{{ batch.submitted_count }}</div>
+        <div style="font-size: 0.8rem; color: #15803d; text-transform: uppercase;">Submitted</div>
+      </div>
+    {% endif %}
   </div>
 
   {% if batch.pending_count > 0 %}

@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+
+{% block title %}Submitted Releases - Discobrain{% endblock %}
+
+{% block content %}
+<div class="card">
+  <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 1.25rem;">
+    <div>
+      <h2 style="font-size: 1.35rem; font-weight: 700; margin: 0;">
+        Submitted Releases
+        {% if filter_batch_id %}
+          <span style="font-size: 0.9rem; font-weight: normal; color: var(--text-muted);">(Batch: {{ filter_batch_id[:8] }})</span>
+        {% endif %}
+      </h2>
+      <p style="color: var(--text-muted); font-size: 0.85rem; margin: 0.25rem 0 0 0;">
+        {{ submitted_releases | length }} release{{ 's' if (submitted_releases | length) != 1 else '' }} submitted to MusicBrainz
+      </p>
+    </div>
+    <div style="display: flex; gap: 0.5rem;">
+      {% if filter_batch_id %}
+        <a href="{{ url_for('submitted_releases') }}" class="btn btn-secondary btn-sm">Show All Batches</a>
+        <a href="{{ url_for('submissions_view', batch_id=filter_batch_id) }}" class="btn btn-secondary btn-sm">Back to Batch</a>
+      {% else %}
+        <a href="{{ url_for('submissions_view') }}" class="btn btn-secondary btn-sm">Current Batch</a>
+      {% endif %}
+      <a href="{{ url_for('index') }}" class="btn btn-secondary btn-sm">Start New Import</a>
+    </div>
+  </div>
+
+  {% if submitted_releases %}
+    <div style="overflow-x: auto;">
+      <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 0.9rem;">
+        <thead>
+          <tr style="border-bottom: 2px solid var(--border); color: var(--text-muted); font-size: 0.8rem; text-transform: uppercase;">
+            <th style="padding: 0.6rem 0.75rem;">Artist</th>
+            <th style="padding: 0.6rem 0.75rem;">Title</th>
+            <th style="padding: 0.6rem 0.75rem;">Year</th>
+            <th style="padding: 0.6rem 0.75rem;">Format</th>
+            <th style="padding: 0.6rem 0.75rem;">Discogs</th>
+            <th style="padding: 0.6rem 0.75rem;">MusicBrainz</th>
+            <th style="padding: 0.6rem 0.75rem;">Submitted At</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in submitted_releases %}
+            <tr style="border-bottom: 1px solid var(--border);">
+              <td style="padding: 0.75rem; font-weight: 600;">
+                {{ r.artist or '—' }}
+              </td>
+              <td style="padding: 0.75rem;">
+                {{ r.title or ('Release #' ~ r.discogs_id) }}
+              </td>
+              <td style="padding: 0.75rem; color: var(--text-muted);">
+                {{ r.year or '—' }}
+              </td>
+              <td style="padding: 0.75rem;">
+                {% if r.format %}
+                  <span class="badge" style="background: #f1f5f9; border: 1px solid #cbd5e1; color: #475569; font-size: 0.75rem;">
+                    {{ r.format }}
+                  </span>
+                {% else %}
+                  <span style="color: var(--text-muted);">—</span>
+                {% endif %}
+              </td>
+              <td style="padding: 0.75rem;">
+                <a href="https://www.discogs.com/release/{{ r.discogs_id }}" target="_blank" rel="noopener" class="btn-link">
+                  #{{ r.discogs_id }} ↗
+                </a>
+              </td>
+              <td style="padding: 0.75rem;">
+                {% if r.mbid %}
+                  <a href="https://musicbrainz.org/release/{{ r.mbid }}" target="_blank" rel="noopener" class="btn-link" title="{{ r.mbid }}">
+                    {{ r.mbid[:8] }}… ↗
+                  </a>
+                {% else %}
+                  <span class="badge" style="background: #fef3c7; border: 1px solid #fde68a; color: #92400e; font-size: 0.75rem;">
+                    Manual
+                  </span>
+                {% endif %}
+              </td>
+              <td style="padding: 0.75rem; color: var(--text-muted); font-size: 0.8rem; white-space: nowrap;">
+                {{ r.submitted_at[:19].replace('T', ' ') if r.submitted_at else '—' }}
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}
+    <div style="padding: 2.5rem 1rem; text-align: center; color: var(--text-muted);">
+      <p style="font-size: 1.1rem; margin-bottom: 1rem;">No releases have been submitted yet.</p>
+      <a href="{{ url_for('index') }}" class="btn btn-primary btn-sm">Import Releases</a>
+    </div>
+  {% endif %}
+</div>
+{% endblock %}

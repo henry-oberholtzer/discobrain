@@ -538,4 +538,74 @@ def test_db_path_consistency_and_cache_table_creation(app, monkeypatch, tmp_path
 
     assert "batches" in tables
     assert "batch_items" in tables
+    assert "submitted_releases" in tables
     assert "cache" in tables
+
+
+def test_submitted_releases_view_empty(client):
+    resp = client.get("/submitted")
+    assert resp.status_code == 200
+    html = resp.data.decode("utf-8")
+    assert "Submitted Releases" in html
+    assert "No releases have been submitted yet." in html
+
+
+def test_submitted_releases_view_populated_and_footer_link(client):
+    store = get_batch_store()
+    batch = store.get_or_create_batch()
+    item_id = store.add_item(
+        batch.id,
+        13954,
+        title="Through The Eyes Of A Scorpion",
+        artist="DJ Trace",
+        format="Vinyl",
+        year=1996,
+    )
+
+    # Complete the item with an MBID
+    store.complete_item(item_id, mbid="e3b179f2-6435-474d-8f66-4ffb197a153d")
+
+    # Verify footer contains link to /submitted
+    resp_home = client.get("/")
+    assert resp_home.status_code == 200
+    html_home = resp_home.data.decode("utf-8")
+    assert "/submitted" in html_home
+    assert "<strong>1</strong> release submitted" in html_home
+
+    # Verify /submitted page contains the release metadata
+    resp_sub = client.get("/submitted")
+    assert resp_sub.status_code == 200
+    html_sub = resp_sub.data.decode("utf-8")
+    assert "Through The Eyes Of A Scorpion" in html_sub
+    assert "DJ Trace" in html_sub
+    assert "1996" in html_sub
+    assert "Vinyl" in html_sub
+    assert "discogs.com/release/13954" in html_sub
+    assert "musicbrainz.org/release/e3b179f2-6435-474d-8f66-4ffb197a153d" in html_sub
+
+
+def test_callback_records_submitted_release(client):
+    store = get_batch_store()
+    batch = store.get_or_create_batch()
+    store.add_item(
+        batch.id,
+        49653,
+        title="Selected Ambient Works Volume II",
+        artist="Aphex Twin",
+        format="CD",
+        year=1994,
+    )
+
+    resp = client.get(
+        f"/callback?batch_id={batch.id}&discogs_id=49653&release_mbid=new-mbid-saw2"
+    )
+    assert resp.status_code == 200
+
+    submitted = store.get_submitted_releases(batch.id)
+    assert len(submitted) == 1
+    assert submitted[0].discogs_id == 49653
+    assert submitted[0].title == "Selected Ambient Works Volume II"
+    assert submitted[0].artist == "Aphex Twin"
+    assert submitted[0].mbid == "new-mbid-saw2"
+    assert submitted[0].format == "CD"
+    assert submitted[0].year == 1994

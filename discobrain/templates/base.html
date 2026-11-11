@@ -258,8 +258,17 @@
         <span>Discobrain</span>
         {% if active_batch and active_batch.submitted_count > 0 %}
           <span style="color: var(--text-muted);">·</span>
-          <span style="color: var(--text-muted);">
-            <strong>{{ active_batch.submitted_count }}</strong> release{{ 's' if active_batch.submitted_count != 1 else '' }} submitted
+          <span>
+            <a href="{{ url_for('submitted_releases') }}" style="color: var(--text-muted); text-decoration: underline;">
+              <strong>{{ active_batch.submitted_count }}</strong> release{{ 's' if active_batch.submitted_count != 1 else '' }} submitted
+            </a>
+          </span>
+        {% elif total_submitted_count and total_submitted_count > 0 %}
+          <span style="color: var(--text-muted);">·</span>
+          <span>
+            <a href="{{ url_for('submitted_releases') }}" style="color: var(--text-muted); text-decoration: underline;">
+              <strong>{{ total_submitted_count }}</strong> release{{ 's' if total_submitted_count != 1 else '' }} submitted
+            </a>
           </span>
         {% endif %}
       </div>

@@ -60,9 +60,11 @@ def inject_app_context():
     active_batch = store.get_or_create_batch()
     lookup = get_lookup()
     cache_count = lookup.get_cache_count()
+    total_submitted_count = store.get_total_submitted_count()
     return {
         "active_batch": active_batch,
         "cache_count": cache_count,
+        "total_submitted_count": total_submitted_count,
     }
 
 
@@ -210,6 +212,19 @@ def mark_submitted(item_id: int, batch_id: str | None = None):
     return redirect(url_for("submissions_view", batch_id=b_id))
 
 
+@app.route("/submitted", methods=["GET"])
+@app.route("/submissions/submitted", methods=["GET"])
+def submitted_releases():
+    store = get_batch_store()
+    batch_id = request.args.get("batch_id")
+    releases = store.get_submitted_releases(batch_id=batch_id)
+    return render_template(
+        "submitted_releases.html",
+        submitted_releases=releases,
+        filter_batch_id=batch_id,
+    )
+
+
 @app.route("/submissions/next", methods=["GET"])
 @app.route("/submissions/<batch_id>/next", methods=["GET"])
 def submissions_next(batch_id: str | None = None):
@@ -274,7 +289,7 @@ def callback():
             lookup.store(discogs_url, release_mbid, relationship="release")
 
         if item:
-            store.complete_item(item.id)
+            store.complete_item(item.id, mbid=release_mbid)
             tags = extract_discogs_tags(item.raw_data)
             if tags and mb_auth.is_musicbrainz_authenticated():
                 tag_result = submit_release_tags(release_mbid, tags)

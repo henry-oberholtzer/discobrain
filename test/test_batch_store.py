@@ -260,3 +260,59 @@ def test_file_backed_persistence():
         assert len(items) == 1
         assert items[0].title == "Persisted Release"
         store2.close()
+
+
+def test_complete_item_stores_all_release_metadata():
+    store = BatchStore()
+    b = store.get_or_create_batch()
+    item_id = store.add_item(
+        b.id,
+        12345,
+        title="Selected Ambient Works 85-92",
+        artist="Aphex Twin",
+        format="Vinyl",
+        year=1992,
+    )
+
+    store.complete_item(item_id, mbid="11111111-2222-3333-4444-555555555555")
+
+    # Item dropped from queue
+    assert store.get_item(item_id) is None
+
+    # Stored in submitted_releases
+    submitted = store.get_submitted_releases(b.id)
+    assert len(submitted) == 1
+    record = submitted[0]
+    assert record.discogs_id == 12345
+    assert record.title == "Selected Ambient Works 85-92"
+    assert record.artist == "Aphex Twin"
+    assert record.format == "Vinyl"
+    assert record.year == 1992
+    assert record.mbid == "11111111-2222-3333-4444-555555555555"
+    assert record.submitted_at != ""
+
+    assert store.get_total_submitted_count() == 1
+
+
+def test_record_submitted_release_direct():
+    store = BatchStore()
+    batch_id = store.create_batch("batch_custom")
+    rec_id = store.record_submitted_release(
+        batch_id,
+        99999,
+        mbid="mbid-custom-123",
+        artist="Underworld",
+        title="Dubnobasswithmyheadman",
+        year=1994,
+        format="CD",
+    )
+    assert rec_id > 0
+
+    submitted = store.get_submitted_releases()
+    assert len(submitted) == 1
+    assert submitted[0].discogs_id == 99999
+    assert submitted[0].artist == "Underworld"
+    assert submitted[0].title == "Dubnobasswithmyheadman"
+    assert submitted[0].year == 1994
+    assert submitted[0].format == "CD"
+    assert submitted[0].mbid == "mbid-custom-123"
