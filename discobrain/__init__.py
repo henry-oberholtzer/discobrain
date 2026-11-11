@@ -28,6 +28,7 @@ from .pipeline import (
     reevaluate_pending_items,
 )
 from .release_converter.musicbrainz import MusicBrainzLookUp
+from .tagger import TagSubmissionResult, extract_discogs_tags, submit_release_tags
 
 load_dotenv()
 
@@ -266,6 +267,7 @@ def callback():
     if discogs_id is not None:
         item = store.get_item_by_discogs_id(batch_id, discogs_id)
 
+    tag_result: TagSubmissionResult | None = None
     if release_mbid:
         if discogs_id is not None:
             discogs_url = f"https://www.discogs.com/release/{discogs_id}"
@@ -273,6 +275,22 @@ def callback():
 
         if item:
             store.complete_item(item.id)
+            tags = extract_discogs_tags(item.raw_data)
+            if tags and mb_auth.is_musicbrainz_authenticated():
+                tag_result = submit_release_tags(release_mbid, tags)
+                if tag_result.status == "submitted":
+                    flash(
+                        f"Submitted {len(tag_result.tags)} tag(s) to MusicBrainz: {', '.join(tag_result.tags)}",
+                        "success",
+                    )
+                elif tag_result.status == "failed":
+                    flash(f"Tag submission warning: {tag_result.error}", "warning")
+            elif tags and not mb_auth.is_musicbrainz_authenticated():
+                tag_result = TagSubmissionResult(
+                    status="skipped",
+                    tags=tags,
+                    error="Not authenticated with MusicBrainz",
+                )
 
     # Dynamic re-evaluation of remaining pending releases in this batch
     converter = build_converter(lookup=lookup, session_data=dict(session))
@@ -299,6 +317,7 @@ def callback():
         item=item,
         discogs_id=discogs_id,
         release_mbid=release_mbid,
+        tag_result=tag_result,
     )
 
 

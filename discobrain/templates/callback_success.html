@@ -32,6 +32,27 @@
         </a>
       </div>
     </div>
+
+    {% if tag_result %}
+      {% if tag_result.status == 'submitted' and tag_result.tags %}
+        <div class="alert alert-success" style="margin-bottom: 1.5rem; text-align: left;">
+          <div style="font-weight: 600; margin-bottom: 0.35rem;">Tags Submitted to MusicBrainz:</div>
+          <div style="display: flex; gap: 0.35rem; flex-wrap: wrap;">
+            {% for tag in tag_result.tags %}
+              <span class="badge badge-auth" style="font-size: 0.8rem;">{{ tag }}</span>
+            {% endfor %}
+          </div>
+        </div>
+      {% elif tag_result.status == 'skipped' and tag_result.tags %}
+        <div class="alert alert-warning" style="margin-bottom: 1.5rem; text-align: left; font-size: 0.85rem;">
+          <strong>Tags Not Submitted:</strong> Not connected to MusicBrainz. Connect your MusicBrainz account in <a href="{{ url_for('settings') }}" class="btn-link">Settings</a> to submit release genres and styles automatically.
+        </div>
+      {% elif tag_result.status == 'failed' %}
+        <div class="alert alert-warning" style="margin-bottom: 1.5rem; text-align: left; font-size: 0.85rem;">
+          <strong>Tag Submission Warning:</strong> {{ tag_result.error }}
+        </div>
+      {% endif %}
+    {% endif %}
   {% else %}
     <h2 style="font-size: 1.5rem; font-weight: 700; margin-bottom: 0.5rem;">
       Returned from MusicBrainz

@@ -86,6 +86,20 @@
                   Discogs #{{ item.discogs_id }} ↗
                 </a>
               </div>
+              {% if item.raw_data %}
+                {% set item_tags = (item.raw_data.get('genres', []) or []) + (item.raw_data.get('styles', []) or []) %}
+                {% if item_tags %}
+                  <div style="margin-top: 0.35rem; display: flex; align-items: center; gap: 0.35rem; flex-wrap: wrap;">
+                    <span style="font-size: 0.75rem; color: var(--text-muted); font-weight: 600;">Tags:</span>
+                    {% for t in item_tags[:6] %}
+                      <span class="badge" style="background: #f1f5f9; border: 1px solid #cbd5e1; color: #475569; font-size: 0.7rem; padding: 0.15rem 0.45rem;">{{ t }}</span>
+                    {% endfor %}
+                    {% if item_tags | length > 6 %}
+                      <span style="font-size: 0.7rem; color: var(--text-muted);">+{{ item_tags | length - 6 }} more</span>
+                    {% endif %}
+                  </div>
+                {% endif %}
+              {% endif %}
             </div>
             <div>
               <span class="badge" style="background-color: #eff6ff; border: 1px solid #bfdbfe; color: #1d4ed8;">
@@ -111,6 +125,16 @@
                 Mark as Submitted
               </button>
             </form>
+
+            {% if g.musicbrainz and g.musicbrainz.authenticated %}
+              <span style="font-size: 0.75rem; color: #166534;" title="Tags will be posted automatically upon completion">
+                ✓ Auto-tagging enabled
+              </span>
+            {% else %}
+              <span style="font-size: 0.75rem; color: var(--text-muted);">
+                <a href="{{ url_for('settings') }}" class="btn-link" style="color: var(--text-muted);">Enable auto-tagging in Settings</a>
+              </span>
+            {% endif %}
           </div>
         </div>
       {% endfor %}
