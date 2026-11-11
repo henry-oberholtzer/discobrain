@@ -1,8 +1,19 @@
-import re
+from typing import Literal
 
-from typing import Literal, TypedDict, NotRequired
+ModeName = Literal["English", "French", "Sentence", "Turkish"]
 
-ModeName = Literal["English", "French", "Turkish", "Sentence"]
-
-class RegexDict(TypedDict):
-    SPLITWORDSANDPUNCTUATION: NotRequired[re.Pattern[str]]
+EntityName = Literal[
+    "area",
+    "artist",
+    "event",
+    "genre",
+    "instrument",
+    "label",
+    "place",
+    "recording",
+    "release",
+    "release_group",
+    "series",
+    "track",
+    "work",
+]
