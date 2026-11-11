@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from typing import NotRequired, TypedDict
 
 
@@ -76,6 +78,7 @@ class DiscogsTrack(TypedDict):
     type_: str
     artists: NotRequired[list[DiscogsReleaseArtist]]
     extraartists: NotRequired[list[DiscogsReleaseArtist]]
+    sub_tracks: NotRequired[list[DiscogsTrack]]
 
 class DiscogsVideo(TypedDict):
     description: str
@@ -434,21 +437,23 @@ DISCOGS_ISO_COUNTRY_MAPPING = {
 # Follows a pattern of Discogs Major Format -> Discogs Description -> MusicBrainz Format
 DISCOGS_FORMAT_MAPPING = {
     "Vinyl": {
+        'Vinyl': 'Vinyl',
         '7"': '7" Vinyl',
         '10"': '10" Vinyl',
         '12"': '12" Vinyl',
         'LP': '12" Vinyl'
     },
     "Cassette": "Cassette",
-    "CD": "Compact Disc",
-    "CDr": {},
+    "CD": {
+        "CD": "CD",
+        "Enhanced": "Enhanced CD",
+        "Copy Protected": "Copy Control CD"
+    },
+    "SACD": "SACD",
+    "CDr": "CD-R",
+    "DVD": "",
     "File": "Digital Media",
     "Flexi-Disc": {},
     "Acetate": {},
     "Lathe Cut": {}
 }
-
-DISCOGS_GENRE_MAPPING = {
-    "Electronic": "electronic"
-}
-

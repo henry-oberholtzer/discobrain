@@ -180,6 +180,66 @@ def test_release_disambiguation(given: list[DiscogsFormat], expected: str):
                 ]
             )
         ]
+    ),
+    (
+            load_json(21483373),
+            [
+                MBMedium(
+                    format="CD",
+                    track=[
+                        MBTrack(
+                            name="Piano Trio in G minor, Op. 17: Allegro Moderato / Scherzo: Tempo di Menuetto / Andante / Allegretto",
+                            length=((11*60+31)+(4*60+51)+(5*60+10)+(7*60+39))*1000,
+                            artist_credit=MBArtistCredit(
+                                names=[
+                                    MBName(
+                                        name="Clara Schumann",
+                                        mbid="https://www.discogs.com/artist/933317",
+                                        join_phrase=", ",
+                                        artist=MBArtistName(name="Clara Schumann")
+                                    ),
+                                    MBName(
+                                        name="Robert Schumann",
+                                        mbid="https://www.discogs.com/artist/578727",
+                                        join_phrase=" - ",
+                                        artist=MBArtistName(name="Robert Schumann")
+                                    ),
+                                    MBName(
+                                        name="The Atlantis Trio",
+                                        mbid="https://www.discogs.com/artist/11420129",
+                                        artist=MBArtistName(name="The Atlantis Trio")
+                                    ),
+                                ]
+                            )
+                        ),
+                        MBTrack(
+                            name="Piano Trio No. 1 in D minor, Op. 63: Mit Energie und Leidenschaft / Lebhaft, Doch Nicht Zu Rasch / Langsam Mit Inniger Empfindung / Mit Feuer",
+                            length=((13*60+3)+(5*60+1)+(6*60+32)+(8*60+57))*1000,
+                            artist_credit=MBArtistCredit(
+                                names=[
+                                    MBName(
+                                        name="Clara Schumann",
+                                        mbid="https://www.discogs.com/artist/933317",
+                                        join_phrase=", ",
+                                        artist=MBArtistName(name="Clara Schumann")
+                                    ),
+                                    MBName(
+                                        name="Robert Schumann",
+                                        mbid="https://www.discogs.com/artist/578727",
+                                        join_phrase=" - ",
+                                        artist=MBArtistName(name="Robert Schumann")
+                                    ),
+                                    MBName(
+                                        name="The Atlantis Trio",
+                                        mbid="https://www.discogs.com/artist/11420129",
+                                        artist=MBArtistName(name="The Atlantis Trio")
+                                    ),
+                                ]
+                            )
+                        )
+                    ]
+                )
+            ]
     )
 ])
 def test_discogs_tracklist(given: DiscogsRelease, expected: list[MBMedium]):

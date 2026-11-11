@@ -8,6 +8,8 @@ import requests
 from requests_oauthlib import OAuth1
 from requests_ratelimiter import LimiterSession
 
+from discobrain.guess_case.constants import SENTENCE_STOP_CHARS_REGEX
+
 from .constants import USER_AGENT
 from .discogs import (
     DISCOGS_FORMAT_MAPPING,
@@ -139,6 +141,7 @@ def discogs_format_mapping(f: DiscogsFormat) -> str | None:
             specific = mb_version.get(desc)
             if specific:
                 return specific
+        return mb_version.get(format)
     return None
 
 def discogs_build_mediums(format: list[DiscogsFormat]) -> list[MBMedium]:
@@ -214,7 +217,7 @@ def discogs_tracklist(d: DiscogsRelease) -> list[MBMedium]:
             continue
         mb_track = MBTrack(
             name=track['title'],
-            number=track['position'],
+            number=track['position'] if track['position'] else None,
             length=mm_ss_to_ms(track['duration'])
         )
         # Check if the medium should be changed
@@ -250,6 +253,29 @@ def discogs_tracklist(d: DiscogsRelease) -> list[MBMedium]:
                 if len(extra.names) >= 3:
                     extra.names[-2].join_phrase = make_join('&')
                 mb_track.artist_credit.names.extend(extra.names)
+        # If the track type is an index track, collect the subtracks
+        if track['type_'] == "index" and track.get('sub_tracks'):
+            index_has_duration = bool(track["duration"])
+            subtrack_duration = 0
+            subtrack_titles = []
+            for subtrack in track.get('sub_tracks'):
+                st_duration = mm_ss_to_ms(subtrack['duration'])
+                subtrack_duration += st_duration if st_duration else 0
+                subtrack_titles.append(subtrack['title'].strip())
+            # Don't add a duration if the index already provided one
+            if not index_has_duration:
+                mb_track.length = subtrack_duration
+
+            # If the track doesn't end with a sentence stop character, add a colon
+            joined_subtracks = ' / '.join(subtrack_titles)
+            if mb_track.name: 
+                if not re.match(SENTENCE_STOP_CHARS_REGEX, mb_track.name[-1]):
+                    mb_track.name += ":"
+                mb_track.name += f" {joined_subtracks}"
+            else:
+                mb_track.name = joined_subtracks
+
+        # Add to medium
         if not mediums[current_medium].track:
             mediums[current_medium].track = [mb_track]
         elif mediums[current_medium].track:
