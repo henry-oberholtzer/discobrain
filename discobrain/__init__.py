@@ -112,6 +112,17 @@ def index():
     return render_template("index.html")
 
 
+@app.route("/settings", methods=["GET"])
+def settings():
+    consumer_key, consumer_secret = auth.get_consumer_credentials()
+    client_id, client_secret = mb_auth.get_musicbrainz_client_credentials()
+    return render_template(
+        "settings.html",
+        has_discogs_consumer_keys=bool(consumer_key and consumer_secret),
+        has_musicbrainz_client_credentials=bool(client_id and client_secret),
+    )
+
+
 @app.route("/parse", methods=["POST"])
 def parse():
     raw_urls = request.form.get("raw_urls", "")

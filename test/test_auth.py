@@ -1,23 +1,30 @@
 from unittest.mock import MagicMock, patch
 
 
-def test_connect_page_renders_without_consumer_keys(client, monkeypatch):
+def test_settings_page_renders_without_consumer_keys(client, monkeypatch):
     monkeypatch.delenv("DISCOGS_CONSUMER_KEY", raising=False)
     monkeypatch.delenv("DISCOGS_CONSUMER_SECRET", raising=False)
-    resp = client.get("/discogs/")
+    resp = client.get("/settings")
     assert resp.status_code == 200
     html = resp.data.decode("utf-8")
-    assert "Connect Discogs Account" in html
+    assert "Settings" in html
+    assert "Discogs" in html
     assert "Option 1: Personal Access Token" in html
     assert "Option 2: OAuth 1.0a" in html
-    assert "OAuth Unavailable (Keys Missing)" in html
+    assert "OAuth Unavailable" in html
 
 
-def test_connect_page_renders_with_consumer_keys(client, monkeypatch):
+def test_discogs_connect_redirects_to_settings(client):
+    resp = client.get("/discogs/connect")
+    assert resp.status_code == 302
+    assert resp.headers["Location"].endswith("/settings")
+
+
+def test_settings_page_renders_with_consumer_keys(client, monkeypatch):
     monkeypatch.setenv("DISCOGS_CONSUMER_KEY", "mock_key")
     monkeypatch.setenv("DISCOGS_CONSUMER_SECRET", "mock_secret")
 
-    resp = client.get("/discogs/connect")
+    resp = client.get("/settings")
     assert resp.status_code == 200
     html = resp.data.decode("utf-8")
     assert "Authorize via Discogs OAuth" in html
@@ -39,7 +46,7 @@ def test_token_auth_success(client):
 
         resp = client.post("/discogs/token", data={"token": "valid_user_token_abc"})
         assert resp.status_code == 302
-        assert resp.headers["Location"].endswith("/")
+        assert resp.headers["Location"].endswith("/settings")
 
         with client.session_transaction() as sess:
             assert sess["discogs_user_token"] == "valid_user_token_abc"
@@ -134,7 +141,7 @@ def test_oauth_callback_stores_tokens_and_username(client, monkeypatch):
 
         resp = client.get("/discogs/auth?oauth_verifier=verifier_789")
         assert resp.status_code == 302
-        assert resp.headers["Location"].endswith("/")
+        assert resp.headers["Location"].endswith("/settings")
 
         with client.session_transaction() as sess:
             assert sess["discogs_access_token"] == "access_token_abc"
@@ -150,7 +157,7 @@ def test_logout_clears_session(client):
 
     resp = client.get("/discogs/logout")
     assert resp.status_code == 302
-    assert resp.headers["Location"].endswith("/")
+    assert resp.headers["Location"].endswith("/settings")
 
     with client.session_transaction() as sess:
         assert "discogs_user_token" not in sess

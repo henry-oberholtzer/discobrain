@@ -5,7 +5,6 @@ from flask import (
     Blueprint,
     flash,
     redirect,
-    render_template,
     request,
     session,
     url_for,
@@ -33,10 +32,8 @@ def get_consumer_credentials() -> tuple[str, str]:
 
 @bp.route("/", methods=["GET"])
 @bp.route("/connect", methods=["GET"])
-def connect() -> str:
-    consumer_key, consumer_secret = get_consumer_credentials()
-    has_consumer_keys = bool(consumer_key and consumer_secret)
-    return render_template("discogs_connect.html", has_consumer_keys=has_consumer_keys)
+def connect() -> Response:
+    return redirect(url_for("settings"))
 
 
 @bp.route("/token", methods=["POST"])
@@ -44,7 +41,7 @@ def token_auth() -> Response:
     token = request.form.get("token", "").strip()
     if not token:
         flash("Please enter a valid Discogs Personal Access Token.", "error")
-        return redirect(url_for("discogs.connect"))
+        return redirect(url_for("settings"))
 
     try:
         resp = requests.get(
@@ -66,16 +63,16 @@ def token_auth() -> Response:
                 f"Successfully connected to Discogs as {username} (60 requests/min).",
                 "success",
             )
-            return redirect(url_for("index"))
+            return redirect(url_for("settings"))
         else:
             flash(
                 "Invalid Discogs Personal Access Token. Please verify the token.",
                 "error",
             )
-            return redirect(url_for("discogs.connect"))
+            return redirect(url_for("settings"))
     except requests.RequestException as e:
         flash(f"Error validating token with Discogs: {e}", "error")
-        return redirect(url_for("discogs.connect"))
+        return redirect(url_for("settings"))
 
 
 @bp.route("/login", methods=["GET"])
@@ -87,7 +84,7 @@ def login() -> Response:
             "Discogs OAuth requires DISCOGS_CONSUMER_KEY and DISCOGS_CONSUMER_SECRET in your environment or .env file. Alternatively, connect using a Personal Access Token.",
             "warning",
         )
-        return redirect(url_for("discogs.connect"))
+        return redirect(url_for("settings"))
 
     access_token = session.get("discogs_access_token")
     access_token_secret = session.get("discogs_access_token_secret")
@@ -108,7 +105,7 @@ def login() -> Response:
                 username = user_data.get("username", "Discogs User")
                 session["discogs_username"] = username
                 flash(f"Already connected as {username}.", "info")
-                return redirect(url_for("index"))
+                return redirect(url_for("settings"))
         except requests.RequestException:
             pass
 
@@ -128,7 +125,7 @@ def login() -> Response:
         return redirect(auth_url)
     except (TokenRequestDenied, OAuth1Error, ValueError, requests.RequestException) as e:
         flash(f"Discogs OAuth initiation failed: {e}", "error")
-        return redirect(url_for("discogs.connect"))
+        return redirect(url_for("settings"))
 
 
 @bp.route("/auth", methods=["GET"])
@@ -137,7 +134,7 @@ def auth() -> Response:
         session.pop("discogs_req_token", None)
         session.pop("discogs_req_token_secret", None)
         flash("Discogs authorization was cancelled.", "info")
-        return redirect(url_for("discogs.connect"))
+        return redirect(url_for("settings"))
 
     consumer_key, consumer_secret = get_consumer_credentials()
     verifier = request.args.get("oauth_verifier")
@@ -149,7 +146,7 @@ def auth() -> Response:
             "Invalid OAuth verification flow. Please try authenticating again.",
             "error",
         )
-        return redirect(url_for("discogs.connect"))
+        return redirect(url_for("settings"))
 
     try:
         discogs = OAuth1Session(
@@ -181,10 +178,10 @@ def auth() -> Response:
             f"Successfully authenticated with Discogs as {username} (60 requests/min)!",
             "success",
         )
-        return redirect(url_for("index"))
+        return redirect(url_for("settings"))
     except (TokenRequestDenied, OAuth1Error, ValueError, requests.RequestException) as e:
         flash(f"Failed to obtain Discogs access token: {e}", "error")
-        return redirect(url_for("discogs.connect"))
+        return redirect(url_for("settings"))
 
 
 @bp.route("/logout", methods=["GET", "POST"])
@@ -196,4 +193,4 @@ def logout() -> Response:
     session.pop("discogs_user_token", None)
     session.pop("discogs_username", None)
     flash("Disconnected from Discogs.", "info")
-    return redirect(url_for("index"))
+    return redirect(request.referrer or url_for("settings"))

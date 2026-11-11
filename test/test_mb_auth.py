@@ -8,37 +8,44 @@ from discobrain.mb_auth import (
 )
 
 
-def test_mb_connect_page_renders_without_client_credentials(client, monkeypatch):
+def test_mb_settings_page_renders_without_client_credentials(client, monkeypatch):
     monkeypatch.delenv("MUSICBRAINZ_CLIENT_ID", raising=False)
     monkeypatch.delenv("MUSICBRAINZ_CLIENT_SECRET", raising=False)
-    resp = client.get("/musicbrainz/")
+    resp = client.get("/settings")
     assert resp.status_code == 200
     html = resp.data.decode("utf-8")
-    assert "Connect MusicBrainz Account" in html
-    assert "MusicBrainz OAuth 2.0 Authorization" in html
-    assert "OAuth Unavailable (Keys Missing)" in html
+    assert "Settings" in html
+    assert "MusicBrainz" in html
+    assert "OAuth 2.0 Authorization" in html
+    assert "OAuth Unavailable" in html
 
 
-def test_mb_connect_page_renders_with_client_credentials(client, monkeypatch):
+def test_mb_connect_redirects_to_settings(client):
+    resp = client.get("/musicbrainz/connect")
+    assert resp.status_code == 302
+    assert resp.headers["Location"].endswith("/settings")
+
+
+def test_mb_settings_page_renders_with_client_credentials(client, monkeypatch):
     monkeypatch.setenv("MUSICBRAINZ_CLIENT_ID", "mb_client_123")
     monkeypatch.setenv("MUSICBRAINZ_CLIENT_SECRET", "mb_secret_456")
 
-    resp = client.get("/musicbrainz/connect")
+    resp = client.get("/settings")
     assert resp.status_code == 200
     html = resp.data.decode("utf-8")
     assert "Authorize with MusicBrainz" in html
 
 
-def test_mb_connect_page_shows_authenticated_state(client):
+def test_mb_settings_page_shows_authenticated_state(client):
     with client.session_transaction() as sess:
         sess["musicbrainz_oauth_token"] = "valid_mb_token"
         sess["musicbrainz_username"] = "music_editor"
 
-    resp = client.get("/musicbrainz/connect")
+    resp = client.get("/settings")
     assert resp.status_code == 200
     html = resp.data.decode("utf-8")
     assert "music_editor" in html
-    assert "Disconnect" in html
+    assert "Disconnect MusicBrainz" in html
 
 
 def test_mb_login_missing_credentials(client, monkeypatch):
@@ -142,7 +149,7 @@ def test_mb_callback_success(client, monkeypatch):
 
         resp = client.get("/musicbrainz/callback?code=valid_code&state=valid_state_123")
         assert resp.status_code == 302
-        assert resp.headers["Location"].endswith("/")
+        assert resp.headers["Location"].endswith("/settings")
 
         with client.session_transaction() as sess:
             assert sess["musicbrainz_oauth_token"] == "mb_access_tok"
@@ -157,7 +164,7 @@ def test_mb_logout(client):
 
     resp = client.get("/musicbrainz/logout")
     assert resp.status_code == 302
-    assert resp.headers["Location"].endswith("/")
+    assert resp.headers["Location"].endswith("/settings")
 
     with client.session_transaction() as sess:
         assert "musicbrainz_oauth_token" not in sess

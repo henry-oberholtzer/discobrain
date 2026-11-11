@@ -217,25 +217,23 @@
           <span class="badge badge-auth" title="Authenticated API access (60 requests/min)">
             ● Discogs: Connected ({{ g.user.username }}) · 60/min
           </span>
-          <a href="{{ url_for('discogs.logout') }}" class="btn-link">Disconnect</a>
         {% else %}
           <span class="badge badge-unauth" title="Unauthenticated access (25 requests/min)">
             ○ Discogs: Not Connected · 25/min
           </span>
-          <a href="{{ url_for('discogs.connect') }}" class="btn-link">Connect Discogs</a>
         {% endif %}
 
         {% if g.musicbrainz and g.musicbrainz.authenticated %}
           <span class="badge badge-auth" title="Authenticated with MusicBrainz (Tag & Profile access)">
             ● MusicBrainz: Connected ({{ g.musicbrainz.username }})
           </span>
-          <a href="{{ url_for('musicbrainz.logout') }}" class="btn-link">Disconnect</a>
         {% else %}
           <span class="badge badge-unauth" title="Not connected to MusicBrainz (Required for genre/tag submission)">
             ○ MusicBrainz: Not Connected
           </span>
-          <a href="{{ url_for('musicbrainz.connect') }}" class="btn-link">Connect MusicBrainz</a>
         {% endif %}
+
+        <a href="{{ url_for('settings') }}" class="btn-link" style="color: #93c5fd; font-weight: 500;">Settings</a>
       </div>
     </div>
   </header>

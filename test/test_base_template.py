@@ -52,7 +52,7 @@ def test_logout_clears_session(client):
 
     resp = client.get("/discogs/logout")
     assert resp.status_code == 302
-    assert resp.headers["Location"].endswith("/")
+    assert resp.headers["Location"].endswith("/settings")
 
     with client.session_transaction() as sess:
         assert "discogs_access_token" not in sess
@@ -75,6 +75,7 @@ def test_base_template_rendering(app):
         assert "Discobrain" in html
         assert "Discogs: Not Connected" in html
         assert "MusicBrainz: Not Connected" in html
+        assert "Settings" in html
         assert "Welcome to Discobrain!" in html
         assert "alert-success" in html
         assert "Main content rendered" in html

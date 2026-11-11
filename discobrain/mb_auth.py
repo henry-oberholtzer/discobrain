@@ -7,7 +7,6 @@ from flask import (
     current_app,
     flash,
     redirect,
-    render_template,
     request,
     session,
     url_for,
@@ -102,17 +101,8 @@ def get_musicbrainz_session() -> OAuth2Session | None:
 
 @bp.route("/", methods=["GET"])
 @bp.route("/connect", methods=["GET"])
-def connect() -> str:
-    client_id, client_secret = get_musicbrainz_client_credentials()
-    has_client_credentials = bool(client_id and client_secret)
-    is_authenticated = is_musicbrainz_authenticated()
-    username = get_musicbrainz_username()
-    return render_template(
-        "musicbrainz_connect.html",
-        has_client_credentials=has_client_credentials,
-        is_authenticated=is_authenticated,
-        username=username,
-    )
+def connect() -> Response:
+    return redirect(url_for("settings"))
 
 
 @bp.route("/login", methods=["GET"])
@@ -125,7 +115,7 @@ def login() -> Response:
             "in your environment or .env file.",
             "warning",
         )
-        return redirect(url_for("musicbrainz.connect"))
+        return redirect(url_for("settings"))
 
     access_token = session.get("musicbrainz_oauth_token")
     if access_token:
@@ -148,7 +138,7 @@ def login() -> Response:
                 )
                 session["musicbrainz_username"] = username
                 flash(f"Already connected to MusicBrainz as {username}.", "info")
-                return redirect(url_for("index"))
+                return redirect(url_for("settings"))
         except requests.RequestException:
             pass
 
@@ -164,7 +154,7 @@ def login() -> Response:
         return redirect(auth_url)
     except (OAuth2Error, ValueError, requests.RequestException) as e:
         flash(f"MusicBrainz OAuth initiation failed: {e}", "error")
-        return redirect(url_for("musicbrainz.connect"))
+        return redirect(url_for("settings"))
 
 
 @bp.route("/callback", methods=["GET"])
@@ -174,18 +164,18 @@ def callback() -> Response:
         error_desc = request.args.get("error_description", error)
         session.pop("musicbrainz_oauth_state", None)
         flash(f"MusicBrainz authorization error: {error_desc}", "error")
-        return redirect(url_for("musicbrainz.connect"))
+        return redirect(url_for("settings"))
 
     expected_state = session.pop("musicbrainz_oauth_state", None)
     returned_state = request.args.get("state")
     if not expected_state or expected_state != returned_state:
         flash("Invalid OAuth state. Please try authenticating again.", "error")
-        return redirect(url_for("musicbrainz.connect"))
+        return redirect(url_for("settings"))
 
     code = request.args.get("code")
     if not code:
         flash("Authorization code missing from MusicBrainz response.", "error")
-        return redirect(url_for("musicbrainz.connect"))
+        return redirect(url_for("settings"))
 
     client_id, client_secret = get_musicbrainz_client_credentials()
     redirect_uri = url_for("musicbrainz.callback", _external=True)
@@ -226,10 +216,10 @@ def callback() -> Response:
             f"Successfully authenticated with MusicBrainz as {username}!",
             "success",
         )
-        return redirect(url_for("index"))
+        return redirect(url_for("settings"))
     except (OAuth2Error, ValueError, requests.RequestException) as e:
         flash(f"Failed to obtain MusicBrainz access token: {e}", "error")
-        return redirect(url_for("musicbrainz.connect"))
+        return redirect(url_for("settings"))
 
 
 @bp.route("/logout", methods=["GET", "POST"])
@@ -237,4 +227,4 @@ def callback() -> Response:
 def logout() -> Response:
     clear_musicbrainz_session()
     flash("Disconnected from MusicBrainz.", "info")
-    return redirect(url_for("index"))
+    return redirect(request.referrer or url_for("settings"))
