@@ -1,357 +1,370 @@
-"""
-A port of `guess-case` from MetaBrainz to Python
-
-Original code:
-Copyright (c) 2005 Stefan Kestenholz
-Copyright (c) 2010 MetaBrainz Foundation
-https://github.com/metabrainz/musicbrainz-server/tree/master/root/static/scripts/guess-case
-
-Port:
-
-Copyright (c) 2026 Henry Oberholtzer
-
-"""
+from __future__ import annotations
 
 import re
 from collections.abc import Callable
-from re import Pattern
-from typing import NamedTuple
 
-from .word_checker import is_prep_bracket_single_word, is_prep_bracket_word
+from .constants import (
+    EXCLUDED_ROMAN_NUMERALS_REGEX,
+    LOWER_CASE_WORDS_REGEX,
+    LOWER_CASE_WORDS_TURKISH_REGEX,
+    ROMAN_NUMERALS_REGEX,
+    UPPER_CASE_WORDS_REGEX,
+)
+from .types import ModeName
+from .utils import (
+    is_prep_bracket_single_word,
+    is_prep_bracket_word,
+    safe_index,
+)
 
-from .utils import safe_index
+GUESS_CASE_MODES: list[ModeName] = ["English", "French", "Sentence", "Turkish"]
 
-GUESS_CASE_MODES = ["English", "French", "Sentence", "Turkish"]
 
 def is_guess_case_mode_name(mode_name: str) -> bool:
     return mode_name in GUESS_CASE_MODES
 
-LOWERCASE_WORDS = re.compile(
-    r"^(a|an|and|as|at|but|by|da|de|di|fe|fi|for|in|ina|inna|n|nor|o|of|on|or|tha|the|to)$") 
-LOWERCASE_WORDS_TURKISH = re.compile("^(ve|ile|ya|veya|yahut|ki|mı|mi|mu|mü|mısın|musun|mudur|mıdır|midir|miyim|misin|misiniz|mısınız|müsün|müyüm|müsünüz|mıyım|muyum|musunuz|miyiz|mıyız|muyuz|müyüz|müdür)$")
 
+FixRule = tuple[re.Pattern[str], str | Callable[[re.Match[str]], str]]
 
-UPPERCASE_WORDS = re.compile(
-    r"^(dj|mc|tv|mtv|ep|lp|ymca|nyc|ny|ussr|usa|r&b|bbc|fm|bc|ac|dc|uk|bpm|ok|nba|rza|gza|odb|dmx|2xlc)$")
-
-ROMAN_NUMERALS = re.compile(r"^m{0,4}(cm|cd|d?c{0,3})(xc|xl|l?x{0,3})(ix|iv|v?i{0,3})$")
-
-# Roman numerals that are also common words.
-EXCLUDED_ROMAN_NUMERALS = re.compile(r"^(?:mi|mix)$")
-
-class Fix(NamedTuple):
-    regex: re.Pattern[str]
-    repl: str | Callable[[re.Match[str]], str]
-    re_global: bool = True
-
-PREPOCESS_FIXLIST = [
-    # trim spaces after opening brackets
-    Fix(regex=re.compile(r"(^|\s)([({[])\s+($|\b)", flags=re.IGNORECASE), repl='\2', re_global=False),
-    # trim spaces before closing brackets
-    Fix(regex=re.compile(r"(\b|^)\s+([)}\]])($|\b)", flags=re.IGNORECASE), repl='\2', re_global=False),
-    # vinyl 12'' -> 12"
-    Fix(regex=re.compile(r"(\s|^|\()(\d+)''(\s|$)", flags=re.IGNORECASE), repl='\2"', re_global=False),
-    # vinyl 12in -> 12"
-    Fix(regex=re.compile(r"(\s|^|\()(\d+)in(ch)?(\s|$)", flags=re.IGNORECASE), repl='\2"', re_global=False),
-    # combined word hacks, 
-    # e.g. replace spaces with underscores ("a cappella" -> a_capella)
-    # such that it can be handled correctly in post-processing.
-    # A Capella preprocess
-    Fix(regex=re.compile(r"(\b|^)a\s?c+ap+el+a(\b)", flags=re.IGNORECASE), repl='a_cappella'), 
-    # OC ReMix preprocess
-    Fix(regex=re.compile(r"(\b|^)oc\sremix(\b)", flags=re.IGNORECASE), repl='oc_remix'),
-    # re-edit preprocess
-    Fix(regex=re.compile(r"(\b|^)re-edit(\b)", flags=re.IGNORECASE), repl='re_edit'),
-    # a.k.a. preprocess
-    Fix(regex=re.compile(r"(\b|^)a\/k\/a(\b)", flags=re.IGNORECASE), repl='a_k_a_'),
-    Fix(regex=re.compile(r"(\b|^)a\.k\.a\.(\s)", flags=re.IGNORECASE), repl='a_k_a_'),
+PREPROCESS_FIXES: list[FixRule] = [
+    # spaces after opening brackets
+    (
+        re.compile(r"(^|\s)([({[])\s+($|\b)", flags=re.IGNORECASE),
+        r"\g<1>\g<2>\g<3>",
+    ),
+    # spaces before closing brackets
+    (
+        re.compile(r"(\b|^)\s+([)}\]])($|\b)", flags=re.IGNORECASE),
+        r"\g<1>\g<2>\g<3>",
+    ),
+    # vinyl
+    (
+        re.compile(r"(\s|^|\()(\d+)''(\s|$)", flags=re.IGNORECASE),
+        r'\g<1>\g<2>"\g<3>',
+    ),
+    (
+        re.compile(r"(\s|^|\()(\d+)in(ch)?(\s|$)", flags=re.IGNORECASE),
+        r'\g<1>\g<2>"\g<4>',
+    ),
+    # combined word hacks
+    (
+        re.compile(r"(\b|^)a\s?c+ap+el+a(\b)", flags=re.IGNORECASE),
+        r"\g<1>a_cappella\g<2>",
+    ),
+    (
+        re.compile(r"(\b|^)oc\sremix(\b)", flags=re.IGNORECASE),
+        r"\g<1>oc_remix\g<2>",
+    ),
+    (
+        re.compile(r"(\b|^)re-edit(\b)", flags=re.IGNORECASE),
+        r"\g<1>re_edit\g<2>",
+    ),
+    (
+        re.compile(r"(\b|^)a/k/a(\b)", flags=re.IGNORECASE),
+        r"\g<1>a_k_a_\g<2>",
+    ),
+    (
+        re.compile(r"(\b|^)a\.k\.a\.(\s)", flags=re.IGNORECASE),
+        r"\g<1>a_k_a_\g<2>",
+    ),
 ]
 
-POSTPROCESS_FIXLIST = [
+POSTPROCESS_FIXES: list[FixRule] = [
     # a_cappella inside brackets
-    Fix(regex=
-      re.compile(r"(\b|^)a_cappella(\b)", flags=re.IGNORECASE), 
-      repl='a cappella'
+    (
+        re.compile(r"(\b|^)a_cappella(\b)"),
+        r"\g<1>a cappella\g<2>",
     ),
     # a_cappella outside brackets
-    Fix(regex=
-        re.compile(r"(\b|^)A_cappella(\b)", flags=re.IGNORECASE),
-        repl='A Cappella'
+    (
+        re.compile(r"(\b|^)A_cappella(\b)"),
+        r"\g<1>A Cappella\g<2>",
     ),
     # oc_remix
-    Fix(regex=
+    (
         re.compile(r"(\b|^)oc_remix(\b)", flags=re.IGNORECASE),
-        repl='OC ReMix'
+        r"\g<1>OC ReMix\g<2>",
     ),
     # re_edit inside brackets
-    Fix(regex=
+    (
         re.compile(r"(\b|^)re_edit(\b)"),
-        repl='re-edit'
+        r"\g<1>re-edit\g<2>",
     ),
     # re_edit outside brackets
-    Fix(regex=
+    (
         re.compile(r"(\b|^)Re_edit(\b)"),
-        repl='Re-Edit'
+        r"\g<1>Re-Edit\g<2>",
     ),
     # a.k.a. lowercase
-    Fix(regex=
+    (
         re.compile(r"(\b|^)a_k_a_(\b|$)", flags=re.IGNORECASE),
-        repl='a.k.a.'
+        r"\g<1>a.k.a.\g<2>",
     ),
     # aka lowercase
-    Fix(regex=
+    (
         re.compile(r"(\b|^)aka(\b|$)", flags=re.IGNORECASE),
-        repl='aka'
+        r"\g<1>aka\g<2>",
     ),
-# "fe" is considered a lowercase word, but "Santa Fe" is very common in
-# song titles, so change that "fe" back into "Fe".
-    Fix(regex=
+    # Santa Fe
+    (
         re.compile(r"(\b|^)Santa fe(\b|$)"),
-        repl='Santa Fe'),
-    Fix(regex=
-        re.compile(r"(\b|^)R\s*&\s*B(\b)", flags=re.IGNORECASE),
-        repl='R&B'),
-    Fix(regex=
-        re.compile(r"(\b|^)\[live\)(\b)", flags=re.IGNORECASE),
-        repl='(live)',
-        re_global=False
+        r"\g<1>Santa Fe\g<2>",
     ),
-    Fix(regex=
+    # R&B
+    (
+        re.compile(r"(\b|^)R\s*&\s*B(\b)", flags=re.IGNORECASE),
+        r"\g<1>R&B\g<2>",
+    ),
+    # [live]
+    (
+        re.compile(r"(\b|^)\[live\](\b)", flags=re.IGNORECASE),
+        r"\g<1>(live)\g<2>",
+    ),
+    # DJs
+    (
         re.compile(r"(\b|^)Djs(\b)", flags=re.IGNORECASE),
-        repl='DJs'
+        r"\g<1>DJs\g<2>",
     ),
     # Apple products
-    Fix(regex=
+    (
         re.compile(r"(\b|^)imac(\b)", flags=re.IGNORECASE),
-        repl='iMac'
+        r"\g<1>iMac\g<2>",
     ),
-    Fix(regex=
+    (
         re.compile(r"(\b|^)ipad(\b)", flags=re.IGNORECASE),
-        repl='iPad'
+        r"\g<1>iPad\g<2>",
     ),
-    Fix(regex=
+    (
         re.compile(r"(\b|^)iphone(\b)", flags=re.IGNORECASE),
-        repl='iPhone'
+        r"\g<1>iPhone\g<2>",
     ),
-    Fix(regex=
+    (
         re.compile(r"(\b|^)ipod(\b)", flags=re.IGNORECASE),
-        repl='iPod'
+        r"\g<1>iPod\g<2>",
     ),
-    Fix(regex=
+    (
         re.compile(r"(\b|^)itunes(\b)", flags=re.IGNORECASE),
-        repl='iTunes'
+        r"\g<1>iTunes\g<2>",
     ),
-    Fix(regex=
+    # TikTok & YouTube
+    (
         re.compile(r"(\b|^)tiktok(\b)", flags=re.IGNORECASE),
-        repl='TikTok'
+        r"\g<1>TikTok\g<2>",
     ),
-    Fix(regex=
+    (
         re.compile(r"(\b|^)youtube(\b)", flags=re.IGNORECASE),
-        repl='YouTube'
+        r"\g<1>YouTube\g<2>",
     ),
-    Fix(regex=
+    # Rock 'n' Roll
+    (
         re.compile(r"(\s|^)Rock '?n'? Roll(\s|$)", flags=re.IGNORECASE),
-        repl="Rock 'n' Roll"),
+        r"\g<1>Rock 'n' Roll\g<2>",
+    ),
     # w/o should be lowercase
-    Fix(regex=
+    (
         re.compile(r"(\b)w([/／])o(\b)", flags=re.IGNORECASE),
-        repl='w\2o',
-        re_global=False
+        r"\g<1>w\g<2>o\g<3>",
     ),
     # f. and f/ should be lowercase
-    Fix(regex=
+    (
         re.compile(r"(\b)f([.．/／])(\b)", flags=re.IGNORECASE),
-        repl='f\2',
-        re_global=False
+        r"\g<1>f\g<2>\g<3>",
     ),
 ]
 
-VINYL_SIZE_FIXES = [
-    Fix(
-        regex=re.compile(r"(\s+|\()(7|10|12)(?:inch\b|in\b|'|''|\")([^s]|$)", flags=re.IGNORECASE),
-        repl='\1\2"\3'
-    ),
-    Fix(
-        regex=re.compile(r"((?:\s+|\()(?:7|10|12)\")([^),\s])"),
-        repl='\1 \2'
-        )
-]
 
-TURKISH_LOWERCASE = [
-    Fix(regex=re.compile(r"I\u307"), repl='i'),
-    Fix(regex=re.compile(r"I"), repl='ı'),
-    Fix(regex=re.compile(r"İ"), repl='i'),
-]
-
-TURKISH_UPPERCASE = [
-    Fix(regex=re.compile(r'i'), repl='İ')
-]
-
-def classical_fix(match: re.Match):
-    return f"in {str(match.group(0)).upper()}{str(match.group(1)).lower() if match.group(1) else ""} {str(match.group(2)).upper()}"
-
-CLASSICAL_FIX = [
-    Fix(
-        regex=re.compile(r"\bin ([a-g])(?:[\s-]([Ff]lat|[Ss]harp))?\s(dorian|lydian|major|minor|mixolydian)(?:\b|$)",
-        flags=re.IGNORECASE),
-        repl=classical_fix
-    )
-]
-
-FRENCH_FIX = [
-    Fix(
-        regex=re.compile(r"([!?;:]+)", flags=re.IGNORECASE),
-        repl=' \1'
-    ),
-    Fix(
-        regex=re.compile(r"([«]+)", flags=re.IGNORECASE),
-        repl=' \1 '
-    ),
-    Fix(
-        regex=re.compile(r"([»]+)", flags=re.IGNORECASE),
-        repl=' \1'
-    ),
-    Fix(
-        regex=re.compile(r"^(Le\s|La\s|Les\s|L[’'])(\S+)$", flags=re.IGNORECASE),
-        repl=lambda mo: mo.group(0).replace('\'', '’') + mo.group(1).title()
-    )
-]
-
-def run_fixes(input_string: str, fixes: list[Fix]) -> str:
-    """
-    Iterate through the fixes array and apply thje fixes to the input string
-    """
-    for fix in fixes:
-        input_string = re.sub(fix.regex, fix.repl, input_string, count=1 if not fix.re_global else 0)
-    return input_string
-
-def replace_match(matches: re.Match, input_string: str, regex: Pattern[str], replacement: str) -> str:
-    first_parens = matches[1] if matches[1] else ''
-    second_parens = matches[-1] if matches[-1] else ''
-    return regex.sub(f"{first_parens}{replacement}{second_parens}", input_string)
-
-
-
-def output_word_check(output_words: list[str], word_index: int) -> bool:
-    return (output_words[word_index] == ' ') | (output_words[word_index] == '"' and (safe_index(output_words, word_index - 1) in ['7', '12'])) | (safe_index(output_words, word_index + 1) == '"' and (output_words[word_index] in ['7', '12'])) | is_prep_bracket_word(output_words[word_index])
+def run_fixes(input_string: str, fixes: list[FixRule]) -> str:
+    output = input_string
+    for pattern, repl in fixes:
+        output = pattern.sub(repl, output)
+    return output
 
 
 class GuessCaseMode:
-    @classmethod
-    def do_word(cls) -> bool:
+    name: ModeName = "English"
+    description: str = ""
+
+    def do_word(self) -> bool:
         return False
 
-    @classmethod
-    def fix_vinyl_sizes(cls, input_string: str) -> str:
-        return run_fixes(input_string, VINYL_SIZE_FIXES)
+    def fix_vinyl_sizes(self, input_string: str) -> str:
+        s = re.sub(
+            r"(\s+|\()(7|10|12)(?:inch\b|in\b|'|''|\")([^s]|$)",
+            r'\g<1>\g<2>"\g<3>',
+            input_string,
+            flags=re.IGNORECASE,
+        )
+        s = re.sub(
+            r"((?:\s+|\()(?:7|10|12)\")([^),\s])",
+            r"\g<1> \g<2>",
+            s,
+        )
+        return s
 
-    @classmethod
-    def is_lower_case_word(cls, word: str) -> bool:
-        return bool(re.match(LOWERCASE_WORDS, word))
+    def is_lower_case_word(self, word: str) -> bool:
+        return bool(LOWER_CASE_WORDS_REGEX.match(word))
 
-    @classmethod
-    def is_roman_numeral(cls, word: str) -> bool:
+    def is_roman_numeral(self, word: str, roman: bool = False) -> bool:
         return bool(
-            re.match(ROMAN_NUMERALS, word) and not re.match(EXCLUDED_ROMAN_NUMERALS, word))
+            roman
+            and ROMAN_NUMERALS_REGEX.match(word)
+            and not EXCLUDED_ROMAN_NUMERALS_REGEX.match(word)
+        )
 
-    @classmethod
-    def is_sentence_caps(cls) -> bool:
+    def is_sentence_caps(self) -> bool:
         return True
 
-    @classmethod
-    def is_upper_case_word(cls, word: str) -> bool:
-        return bool(re.match(UPPERCASE_WORDS, word))
+    def is_upper_case_word(self, word: str) -> bool:
+        return bool(UPPER_CASE_WORDS_REGEX.match(word))
 
-    @classmethod
-    def prep_extra_title_info(cls, words: list[str]) -> list[str]:
-        output_words = words
-        last_word = len(words) - 1
+    def prep_extra_title_info(self, words: list[str]) -> list[str]:
+        output_words = list(words)
+        last_word = len(output_words) - 1
         word_index = last_word
-
         handle_pre_process = False
-        while (
-            word_index >= 0 and output_word_check(output_words, word_index)):
-            handle_pre_process = True
-            word_index -= 1
+
+        while word_index >= 0:
+            w = output_words[word_index]
+            prev_w = safe_index(output_words, word_index - 1)
+            next_w = safe_index(output_words, word_index + 1)
+
+            if w == " ":
+                word_index -= 1
+                continue
+
+            if w == '"' and prev_w in ("7", "12"):
+                handle_pre_process = True
+                word_index -= 1
+                continue
+
+            if next_w == '"' and w in ("7", "12"):
+                handle_pre_process = True
+                word_index -= 1
+                continue
+
+            if is_prep_bracket_word(w):
+                handle_pre_process = True
+                word_index -= 1
+                continue
+
+            break
 
         if word_index < last_word:
             word_index += 1
-            while (output_words[word_index] == ' ' and word_index < last_word):
+            while word_index < last_word and output_words[word_index] == " ":
                 word_index += 1
 
             probe = output_words[last_word]
-            if (word_index == last_word and is_prep_bracket_single_word(probe)):
+            if word_index == last_word and is_prep_bracket_single_word(probe):
                 handle_pre_process = False
 
-            if handle_pre_process and word_index > 0 and word_index <= last_word:
-                new_words = output_words[0:word_index]
+            if handle_pre_process and 0 < word_index <= last_word:
+                new_words = list(output_words[:word_index])
 
-                if safe_index(new_words, word_index -1) == '(':
+                if new_words and new_words[-1] == "(":
+                    new_words.pop()
+                if new_words and new_words[-1] == "-":
                     new_words.pop()
 
-                if safe_index(new_words, word_index -1) == '-':
-                    new_words.pop()
-
-                new_words.insert(0, '(')
-                new_words.extend(
-                    output_words[word_index:len(output_words)]
-                )
-                new_words.append(')')
+                new_words.append("(")
+                new_words.extend(output_words[word_index:])
+                new_words.append(")")
                 output_words = new_words
+
         return output_words
 
-    @classmethod
-    def pre_process_titles(cls, input_string: str) -> str:
-        return run_fixes(input_string, PREPOCESS_FIXLIST)
+    def pre_process_titles(self, input_string: str) -> str:
+        return run_fixes(input_string, PREPROCESS_FIXES)
 
-    @classmethod
-    def run_post_process(cls, input_string: str) -> str:
-        return run_fixes(input_string, POSTPROCESS_FIXLIST)
+    def run_post_process(self, input_string: str) -> str:
+        return run_fixes(input_string, POSTPROCESS_FIXES)
 
-    @classmethod
-    def lower(cls, string: str) -> str:
-        return string.lower()
+    def to_lower_case(self, s: str) -> str:
+        return s.lower()
 
-    @classmethod
-    def upper(cls, string: str) -> str:
-        return string.upper()
+    def to_upper_case(self, s: str) -> str:
+        return s.upper()
 
 
 class English(GuessCaseMode):
+    name: ModeName = "English"
 
-    @staticmethod
-    def is_sentence_caps() -> bool:
+    def is_sentence_caps(self) -> bool:
         return False
 
-    @classmethod
-    def run_post_process(cls, input_string: str) -> str:
-        return run_fixes(super().run_post_process(input_string), CLASSICAL_FIX)
+    def run_post_process(self, input_string: str) -> str:
+        output = super().run_post_process(input_string)
+
+        def classical_replace(match: re.Match[str]) -> str:
+            p1 = match.group(1).upper()
+            p2 = f"-{match.group(2).lower()}" if match.group(2) else ""
+            p3 = match.group(3).lower()
+            return f"in {p1}{p2} {p3}"
+
+        output = re.sub(
+            r"\bin ([a-g])(?:[\s-]([Ff]lat|[Ss]harp))?\s(dorian|lydian|major|minor|mixolydian)(?:\b|$)",
+            classical_replace,
+            output,
+            flags=re.IGNORECASE,
+        )
+        return output
 
 
 class French(GuessCaseMode):
-    @classmethod
-    def run_post_process(cls, input_string: str) -> str:
-        return run_fixes(super().run_post_process(input_string), FRENCH_FIX)
+    name: ModeName = "French"
+
+    def run_post_process(self, input_string: str) -> str:
+        output = super().run_post_process(input_string)
+        output = re.sub(r"([!?;:]+)", r" \g<1>", output)
+        output = re.sub(r"([«]+)", r"\g<1> ", output)
+        output = re.sub(r"([»]+)", r" \g<1>", output)
+
+        def french_article(m: re.Match[str]) -> str:
+            m1 = m.group(1).replace("'", "’")
+            m2 = m.group(2)
+            return m1 + m2[:1].upper() + m2[1:]
+
+        output = re.sub(
+            r"^(Le\s|La\s|Les\s|L[’'])(\S+)$",
+            french_article,
+            output,
+            flags=re.IGNORECASE,
+        )
+        return output
 
 
 class Sentence(GuessCaseMode):
-    pass
+    name: ModeName = "Sentence"
 
 
 class Turkish(GuessCaseMode):
+    name: ModeName = "Turkish"
 
-    @classmethod
-    def is_lower_case_word(cls, word: str) -> bool:
-        return bool(LOWERCASE_WORDS.match(word) or LOWERCASE_WORDS_TURKISH.match(word))
+    def is_lower_case_word(self, word: str) -> bool:
+        return bool(
+            LOWER_CASE_WORDS_REGEX.match(word)
+            or LOWER_CASE_WORDS_TURKISH_REGEX.match(word)
+        )
 
-    @classmethod
-    def is_sentence_caps(cls) -> bool:
+    def is_sentence_caps(self) -> bool:
         return False
 
-    @classmethod
-    def lower(cls, string: str) -> str:
-        return run_fixes(string, TURKISH_LOWERCASE).lower()
+    def to_lower_case(self, s: str) -> str:
+        t = s.replace("I\u0307", "i").replace("I", "ı").replace("İ", "i")
+        return t.lower()
 
-    @classmethod
-    def upper(cls, string: str) -> str:
-        return run_fixes(string, TURKISH_UPPERCASE).upper()
+    def to_upper_case(self, s: str) -> str:
+        t = s.replace("i", "İ")
+        return t.upper()
+
+
+_MODES: dict[str, GuessCaseMode] = {
+    "English": English(),
+    "French": French(),
+    "Sentence": Sentence(),
+    "Turkish": Turkish(),
+}
+
+
+def get_mode(mode_name: str | ModeName) -> GuessCaseMode:
+    return _MODES.get(mode_name, _MODES["English"])
