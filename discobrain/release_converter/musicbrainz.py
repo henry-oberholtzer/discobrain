@@ -22,9 +22,15 @@ from discobrain.guess_case import guess_case
 
 from .utils import guess_iso_639_3, guess_iso_15924
 
+# Eventually lifted to a configuration
 MUSICBRAINZ_API_ROOT = "https://musicbrainz.org/ws/2/"
 
+MUSICBRAINZ_FEATURING_JOIN = "feat."
+
+MUSICBRAINZ_SUBTRACK_SEPARATOR = "/"
+
 MUSICBRAINZ_REQUESTS_PER_SECOND = 1
+
 
 class MBReleaseType(StrEnum):
     ALBUM = "Album"

@@ -9,8 +9,10 @@ from discobrain.release_converter import (
     ReleaseConverter,
 )
 from discobrain.release_converter.converter import (
-    build_artist,
     build_label,
+    discogs_build_artist,
+    discogs_build_artists,
+    discogs_build_mediums,
     discogs_strip_disambiguation,
     discogs_tracklist,
     release_disambiguation,
@@ -60,12 +62,21 @@ def test_discogs_e2e():
 @pytest.mark.parametrize("given,expected", [
     (
         [{
-            "name": "Vinyl",
+            "name": "vinyl",
             "quantity": "1",
-            "descriptions": [ '12"', "33 1/3 RPM", "45 RPM", "EP", "Limited Edition", "Repress"],
-            "text": "Orange"
+            "descriptions": [ '12"', "33 1/3 rpm", "45 rpm", "EP", "Limited Edition", "Repress"],
+            "text": "orange"
             }],
         "orange, repress"
+    ),
+    (
+        [{
+            "name": "File",
+            "quantity": "6",
+            "descriptions": [ "AAC", "MP3", "WAV"],
+            "text": "320 Kbps"
+            }],
+        None
         )
     ])
 def test_release_disambiguation(given: list[DiscogsFormat], expected: str):
@@ -102,7 +113,7 @@ def test_release_disambiguation(given: list[DiscogsFormat], expected: str):
                             name="Noisia",
                             mbid="https://www.discogs.com/artist/100457",
                             artist=MBArtistName(name="Noisia"),
-                            join_phrase=" Feat. "
+                            join_phrase=" feat. "
                         ),
                         MBName(
                             name="Phace",
@@ -243,8 +254,9 @@ def test_release_disambiguation(given: list[DiscogsFormat], expected: str):
     )
 ])
 def test_discogs_tracklist(given: DiscogsRelease, expected: list[MBMedium]):
-    assert discogs_tracklist(given) == expected
-
+    mediums = discogs_build_mediums(given['formats'])
+    album_artist = discogs_build_artists(given['artists'])
+    assert discogs_tracklist(mediums, album_artist, given['tracklist']) == expected
 
 def test_discogs_teebee(monkeypatch: MonkeyPatch):
     mapping = {
@@ -264,7 +276,7 @@ def test_discogs_teebee(monkeypatch: MonkeyPatch):
     assert release.release_group == "6d902f27-8a49-354b-ba99-735e3b570262"
     assert release.barcode == "5033826056260"
     assert release.type == MBReleaseType.ALBUM
-    assert release.comment == ""
+    assert release.comment == None
     assert release.language == "eng"
     assert release.script == "Latn"
     assert release.status == "official"
@@ -386,8 +398,8 @@ def test_discogs_strip_disambiguation(given: str, expected: str):
         id="Full artist"
     )
 ])
-def test_build_artist(given: DiscogsReleaseArtist, expected: MBName):
-    assert build_artist(given) == expected
+def test_discogs_build_artist(given: DiscogsReleaseArtist, expected: MBName):
+    assert discogs_build_artist(given) == expected
 
 @pytest.mark.parametrize("given,expected", [
     pytest.param(

@@ -9,6 +9,8 @@ from requests_oauthlib import OAuth1
 from requests_ratelimiter import LimiterSession
 
 from discobrain.guess_case.constants import SENTENCE_STOP_CHARS_REGEX
+from discobrain.release_converter.discogs import DiscogsTrack
+from discobrain.release_converter.musicbrainz import MUSICBRAINZ_SUBTRACK_SEPARATOR
 
 from .constants import USER_AGENT
 from .discogs import (
@@ -21,6 +23,7 @@ from .discogs import (
 )
 from .musicbrainz import (
     MBURL,
+    MUSICBRAINZ_FEATURING_JOIN,
     MBArtistCredit,
     MBArtistName,
     MBDate,
@@ -36,6 +39,7 @@ from .musicbrainz import (
     mb_release_type_from_title,
     mb_release_type_from_tracks,
 )
+from .utils import mm_ss_to_ms
 
 DISCOGS_ENDPOINT = "https://api.discogs.com"
 DISCOGS_AUTHENTICATED_REQUESTS_PER_MINUTE = 60
@@ -51,6 +55,8 @@ SINGLE = ["Single", "Maxi-Single"]
 EP = ["EP"]
 
 DISAMBIGUATORS = ["White Label", "Repress", "Remastered", "Misprint"]
+
+INVALID_DISAMBIGUATOR = re.compile(r"\d{3}\s?kbps|\d{2,3}\.?\d?\s?khz|(24|16|32)\s?bit", flags=re.IGNORECASE)
 
 EXTRA_ARTIST_TYPES = ["Featuring"]
 
@@ -99,11 +105,14 @@ def release_type(d: DiscogsRelease) -> str:
         release_type = mb_release_type_from_tracks(len(d['tracklist']))
     return release_type
 
-def release_disambiguation(formats: list[DiscogsFormat]) -> str:
+def release_disambiguation(formats: list[DiscogsFormat]) -> str | None:
     descs = format_descs(formats)
-    free_text = [f.get('text') for f in formats if f.get('text') is not None]
+    free_text = [f.get('text') for f in formats if f.get('text') is not None and not re.match(INVALID_DISAMBIGUATOR, f.get('text'))]
     disambiguators = descs.intersection(set(DISAMBIGUATORS))
-    return f"{', '.join([*free_text, *disambiguators])}".lower()
+    disambig = f"{', '.join([*free_text, *disambiguators])}".lower()
+    if disambig:
+        return disambig
+    return None
 
 def discogs_release_status(formats: list[DiscogsFormat]) -> MBReleaseStatus:
     descriptions = format_descs(formats)
@@ -157,25 +166,18 @@ def discogs_build_mediums(format: list[DiscogsFormat]) -> list[MBMedium]:
             mediums.append(medium)
     return mediums
 
-def mm_ss_to_ms(duration: str) -> int | None:
-    if not duration:
-        return None
-    segments = duration.split(':')
-    return (int(segments[0]) * 60 + int(segments[1]))*1000
 
 def discogs_strip_disambiguation(name: str | None = None) -> str | None:
     if not name:
         return name
     return re.sub(r'\s*\(\d+\)$', '', name)
 
-def make_join(join: str | None) -> str | None:
-    if not join:
-        return None
+def make_join(join: str) -> str:
     if join in ",;":
         return ", "
     return f" {join.strip()} "
 
-def build_artist(d_artist: DiscogsReleaseArtist) -> MBName:
+def discogs_build_artist(d_artist: DiscogsReleaseArtist) -> MBName:
     artist = MBName()
     # If it's "Various", replace with the known MB various artists
     if d_artist['id'] == 194:
@@ -192,17 +194,55 @@ def build_artist(d_artist: DiscogsReleaseArtist) -> MBName:
         artist.name = anv if anv else name
         if name:
             artist.artist = MBArtistName(name=name)
-    artist.join_phrase=make_join(d_artist.get('join'))
+    if (join := d_artist.get('join')):
+        artist.join_phrase=make_join(join)
     return artist
 
 
-def build_artists(artists: list[DiscogsReleaseArtist]) -> MBArtistCredit:
-    return MBArtistCredit(names=[build_artist(artist) for artist in artists])
+def discogs_build_artists(artists: list[DiscogsReleaseArtist]) -> MBArtistCredit:
+    return MBArtistCredit(names=[discogs_build_artist(artist) for artist in artists])
 
-def discogs_tracklist(d: DiscogsRelease) -> list[MBMedium]:
-    tracklist = d['tracklist']
-    mediums = discogs_build_mediums(d['formats'])
-    album_artist = build_artists(d['artists'])
+def discogs_filter_extra_artists(extra_artists: list[DiscogsReleaseArtist]) -> list[DiscogsReleaseArtist]:
+    def is_extra_artist(artist: DiscogsReleaseArtist) -> bool:
+        return any(artist['role'].lower() in artist_type.lower() for artist_type in EXTRA_ARTIST_TYPES)
+    return list(filter(is_extra_artist, extra_artists))
+
+def discogs_append_extra_artists(artist_credit: MBArtistCredit, extra_artists: list[DiscogsReleaseArtist]):
+    extra = discogs_build_artists(discogs_filter_extra_artists(extra_artists))
+    if total_featuring := len(extra.names):
+        artist_credit.names[-1].join_phrase = make_join(MUSICBRAINZ_FEATURING_JOIN)
+        # Now add the joins.
+        for idx, name in enumerate(extra.names):
+            # if there's something following, we need a join
+            if not name.join_phrase and idx + 1 < total_featuring:
+                name.join_phrase = make_join(',')
+        if len(extra.names) >= 3:
+            extra.names[-2].join_phrase = make_join('&')
+        artist_credit.names.extend(extra.names)
+
+def discogs_append_subtracks(mb_track: MBTrack, subtracks: list[DiscogsTrack] | None):
+    if not subtracks:
+        return
+    subtrack_duration = 0
+    subtrack_titles = []
+    for subtrack in subtracks:
+        st_duration = mm_ss_to_ms(subtrack['duration'])
+        subtrack_duration += st_duration if st_duration else 0
+        subtrack_titles.append(subtrack['title'].strip())
+    # Don't add a duration if the index already provided one
+    if not mb_track.length:
+        mb_track.length = subtrack_duration
+
+    # If the track doesn't end with a sentence stop character, add a colon
+    joined_subtracks = make_join(MUSICBRAINZ_SUBTRACK_SEPARATOR).join(subtrack_titles)
+    if mb_track.name: 
+        if not re.match(SENTENCE_STOP_CHARS_REGEX, mb_track.name[-1]):
+            mb_track.name += ":"
+        mb_track.name += f" {joined_subtracks}"
+    else:
+        mb_track.name = joined_subtracks
+
+def discogs_tracklist(mediums: list[MBMedium], album_artist: MBArtistCredit, tracklist: list[DiscogsTrack]) -> list[MBMedium]:
     current_side = 0
     current_medium = 0
     current_index = 0
@@ -236,44 +276,18 @@ def discogs_tracklist(d: DiscogsRelease) -> list[MBMedium]:
                         current_medium += 1
                 else:
                     current_medium += 1
-
+        # If the track provides artists, or the album artist should be re-used
         if track_artists := track.get('artists'):
-            mb_track.artist_credit = build_artists(track_artists)
+            mb_track.artist_credit = discogs_build_artists(track_artists)
         else:
             mb_track.artist_credit = deepcopy(album_artist)
-        if extra_artists := track.get('extraartists'):
-            extra = build_artists([ea for ea in extra_artists if ea['role'] in EXTRA_ARTIST_TYPES])
-            if total_featuring := len(extra.names):
-                mb_track.artist_credit.names[-1].join_phrase = make_join("Feat.")
-                # Now add the joins.
-                for idx, name in enumerate(extra.names):
-                    # if there's something following, we need a join
-                    if not name.join_phrase and idx + 1 < total_featuring:
-                        name.join_phrase = make_join(',')
-                if len(extra.names) >= 3:
-                    extra.names[-2].join_phrase = make_join('&')
-                mb_track.artist_credit.names.extend(extra.names)
-        # If the track type is an index track, collect the subtracks
-        if track['type_'] == "index" and track.get('sub_tracks'):
-            index_has_duration = bool(track["duration"])
-            subtrack_duration = 0
-            subtrack_titles = []
-            for subtrack in track.get('sub_tracks'):
-                st_duration = mm_ss_to_ms(subtrack['duration'])
-                subtrack_duration += st_duration if st_duration else 0
-                subtrack_titles.append(subtrack['title'].strip())
-            # Don't add a duration if the index already provided one
-            if not index_has_duration:
-                mb_track.length = subtrack_duration
 
-            # If the track doesn't end with a sentence stop character, add a colon
-            joined_subtracks = ' / '.join(subtrack_titles)
-            if mb_track.name: 
-                if not re.match(SENTENCE_STOP_CHARS_REGEX, mb_track.name[-1]):
-                    mb_track.name += ":"
-                mb_track.name += f" {joined_subtracks}"
-            else:
-                mb_track.name = joined_subtracks
+        # Add any extra artists
+        if extra_artists := track.get('extraartists'):
+            discogs_append_extra_artists(mb_track.artist_credit, extra_artists)
+        # If the track type is an index track, collect the subtracks if they exist
+        if track['type_'] == "index" and (subtracks := track.get('sub_tracks')):
+            discogs_append_subtracks(mb_track, subtracks)
 
         # Add to medium
         if not mediums[current_medium].track:
@@ -417,7 +431,7 @@ class ReleaseConverter:
 
     def _mb_from_discogs_release(self, d: DiscogsRelease) -> MBRelease:
         mb = MBRelease(name=d['title']) 
-        mb.artist_credit=build_artists(d['artists'])
+        mb.artist_credit=discogs_build_artists(d['artists'])
         mb.release_group=discogs_master_release(d)
         mb.barcode = barcode(d)
         mb.urls = [discogs_url(d)]
@@ -426,7 +440,7 @@ class ReleaseConverter:
         mb.status = discogs_release_status(d['formats'])
         mb.edit_note = self.edit_note(d['id'])
         mb.events = discogs_release_events(d)
-        mb.mediums = discogs_tracklist(d)
+        mb.mediums = discogs_tracklist(discogs_build_mediums(d['formats']), mb.artist_credit, d['tracklist'])
         mb.labels = build_labels(d['labels'])
         return mb
 

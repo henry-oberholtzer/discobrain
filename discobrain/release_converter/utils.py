@@ -17,6 +17,11 @@ DEFAULT_LANGUAGES: tuple[Language, ...] = (
     Language.JAPANESE,
 )
 
+def mm_ss_to_ms(duration: str) -> int | None:
+    if not duration:
+        return None
+    segments = duration.split(':')
+    return (int(segments[0]) * 60 + int(segments[1]))*1000
 
 def guess_iso_15924(text: str) -> str:
     """
