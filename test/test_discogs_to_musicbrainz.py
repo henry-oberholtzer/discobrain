@@ -22,6 +22,7 @@ from discobrain.release_converter.discogs import (
     DiscogsLabel,
     DiscogsRelease,
     DiscogsReleaseArtist,
+    DiscogsTrack
 )
 from discobrain.release_converter.musicbrainz import (
     MBURL,
@@ -257,6 +258,39 @@ def test_discogs_tracklist(given: DiscogsRelease, expected: list[MBMedium]):
     mediums = discogs_build_mediums(given['formats'])
     album_artist = discogs_build_artists(given['artists'])
     assert discogs_tracklist(mediums, album_artist, given['tracklist']) == expected
+
+def test_discogs_tracklist_titled_multidisc():
+    mediums = [MBMedium(), MBMedium()]
+    album_artist = MBArtistCredit()
+    discogs_tracks: list[DiscogsTrack] = [
+        {
+            "type_": "heading",
+            "title": "First Disc Title ",
+            "duration": "",
+            "position": ""
+        },
+        {
+            "type_": "track",
+            "title": "Test Track",
+            "duration": "",
+            "position": "1-1"
+        },
+        {
+            "type_": "heading",
+            "title": "Second Disc Title",
+            "duration": "",
+            "position": ""
+        },
+        {
+            "type_": "track",
+            "title": "Test Track",
+            "duration": "",
+            "position": "2-1"
+        }
+    ]
+    discogs_tracklist(mediums, album_artist, discogs_tracks)
+    assert mediums[0].name == "First Disc Title"
+    assert mediums[1].name == "Second Disc Title"
 
 def test_discogs_teebee(monkeypatch: MonkeyPatch):
     mapping = {

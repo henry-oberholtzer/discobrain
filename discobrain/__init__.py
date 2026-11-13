@@ -211,6 +211,14 @@ def mark_submitted(item_id: int, batch_id: str | None = None):
     flash("Release marked as submitted.", "success")
     return redirect(url_for("submissions_view", batch_id=b_id))
 
+@app.route("/submissions/items/<int:item_id>/delete", methods=["POST"])
+@app.route("/submissions/<batch_id>/items/<int:item_id>/delete", methods=["POST"])
+def delete_item(item_id: int, batch_id: str | None = None):
+    store = get_batch_store()
+    store.delete_item(item_id)
+    b_id = batch_id or DEFAULT_BATCH_ID
+    flash("Release removed.", "success")
+    return redirect(url_for("submissions_view", batch_id=b_id))
 
 @app.route("/submitted", methods=["GET"])
 @app.route("/submissions/submitted", methods=["GET"])

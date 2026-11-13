@@ -12,7 +12,7 @@
 
   <h2 style="font-size: 1.5rem; font-weight: 700; margin-bottom: 0.5rem;">Opening MusicBrainz Release Editor...</h2>
   <p style="color: var(--text-muted); margin-bottom: 1.5rem;">
-    Preparing seed data for <strong>{{ item.title or ('Discogs #' ~ item.discogs_id) }}</strong>{% if item.artist %} by {{ item.artist }}{% endif %}.
+    Seed data for <strong>{{ item.title or ('Discogs #' ~ item.discogs_id) }}</strong>{% if item.artist %} by {{ item.artist }}{% endif %}.
   </p>
 
   <form id="seed-form" action="https://musicbrainz.org/release/add" method="POST">
@@ -25,9 +25,6 @@
         Proceed to MusicBrainz Release Editor →
       </button>
     </div>
-    <p style="margin-top: 0.75rem; font-size: 0.85rem; color: var(--text-muted);">
-      Click the button above if you are not redirected automatically.
-    </p>
   </form>
 
   <div style="margin-top: 2rem; border-top: 1px solid var(--border); padding-top: 1rem;">
@@ -38,7 +35,7 @@
 </div>
 
 <script>
-  (function() {
+  (function () {
     var form = document.getElementById('seed-form');
     if (form) {
       form.submit();

@@ -133,6 +133,12 @@
               </button>
             </form>
 
+            <form action="{{ url_for('delete_item', batch_id=batch.id, item_id=item.id) }}" method="POST" style="margin: 0;">
+              <button type="submit" class="btn btn-secondary btn-sm" title="Delete item from batch">
+                Delete
+              </button>
+            </form>
+
             {% if g.musicbrainz and g.musicbrainz.authenticated %}
               <span style="font-size: 0.75rem; color: #166534;" title="Tags will be posted automatically upon completion">
                 ✓ Auto-tagging enabled

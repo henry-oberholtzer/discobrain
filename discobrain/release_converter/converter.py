@@ -195,7 +195,7 @@ def discogs_build_artist(d_artist: DiscogsReleaseArtist) -> MBName:
         if name:
             artist.artist = MBArtistName(name=name)
     if (join := d_artist.get('join')):
-        artist.join_phrase=make_join(join)
+        artist.join_phrase=make_join(join.lower())
     return artist
 
 
@@ -242,16 +242,37 @@ def discogs_append_subtracks(mb_track: MBTrack, subtracks: list[DiscogsTrack] | 
     else:
         mb_track.name = joined_subtracks
 
+def track_is_on_new_medium(previous_track_number: str | None, this_track_number: str | None) -> bool:
+    # Check if the track is numeric
+    # if it's not that means there's likely a multi disc situation
+    # if the first index doesn't match, it's confirmed. -often the track or side value 1, A, B, etc
+    return bool(this_track_number and not this_track_number.isnumeric() and previous_track_number and this_track_number[0] != previous_track_number[0])
+
+def change_side_and_medium(format: str | None, current_side: int, current_medium: int) -> tuple[int, int]:
+    # If this format is double sided, it must be even to be a new medium
+    if format and ("Vinyl" in format or "Cassette" in format):
+        current_side += 1
+        if current_side % 2 == 0:
+            current_medium += 1
+    else:
+        current_medium += 1
+    return current_side, current_medium
+
 def discogs_tracklist(mediums: list[MBMedium], album_artist: MBArtistCredit, tracklist: list[DiscogsTrack]) -> list[MBMedium]:
     current_side = 0
     current_medium = 0
     current_index = 0
-    for track in tracklist:
+    for idx, track in enumerate(tracklist):
         med = mediums[current_medium]
-        if track["type_"] == "heading":
+        if track.get("type_") == "heading":
             title = track['title'].strip()
-            if med.name:
-                med.name = f"{med.name} / {title}"
+            if med.name and not (current_medium < len(mediums) -1):
+                med.name = make_join(MUSICBRAINZ_SUBTRACK_SEPARATOR).join([med.name, title])
+            elif len(med.track) and idx < len(tracklist) - 1 and track_is_on_new_medium(med.track[-1].number, tracklist[idx + 1].get('position')):
+                mediums[current_medium + 1].name = title
+            # If there was a previous track, and there is a next track
+            # and the track after this one looks like it's on the next medium
+            # Then we need to set the heading for the next disc
             else:
                 med.name = title
             continue
@@ -260,22 +281,11 @@ def discogs_tracklist(mediums: list[MBMedium], album_artist: MBArtistCredit, tra
             number=track['position'] if track['position'] else None,
             length=mm_ss_to_ms(track['duration'])
         )
-        # Check if the medium should be changed
 
-        # The current medium must have a track to be eligible to change
-        # and there must be more mediums we can change to.
-        if current_index != 0 and current_medium < len(mediums) - 1:
-            last_index = med.track[-1].number
-            # Check if the track is numeric, if it's not that means there's likely a multi disc situation
-            if mb_track.number and not mb_track.number.isnumeric() and last_index and mb_track.number[0] != last_index[0]:
-                # If the indices don't start the same, increment the curent medium
-                # If this medium is double sided, divide it by 2
-                if med.format and ("Vinyl" in med.format or "Cassette" in med.format):
-                    current_side += 1
-                    if current_side % 2 == 0:
-                        current_medium += 1
-                else:
-                    current_medium += 1
+        # Check if the medium should be changed
+        # The current medium must have a track to be eligible to change and there must be more mediums we can change to.
+        if current_index != 0 and current_medium < len(mediums) - 1 and track_is_on_new_medium(med.track[-1].number, mb_track.number):
+            current_side, current_medium = change_side_and_medium(med.format, current_side, current_medium)
         # If the track provides artists, or the album artist should be re-used
         if track_artists := track.get('artists'):
             mb_track.artist_credit = discogs_build_artists(track_artists)
@@ -430,19 +440,21 @@ class ReleaseConverter:
         return data
 
     def _mb_from_discogs_release(self, d: DiscogsRelease) -> MBRelease:
-        mb = MBRelease(name=d['title']) 
-        mb.artist_credit=discogs_build_artists(d['artists'])
-        mb.release_group=discogs_master_release(d)
-        mb.barcode = barcode(d)
-        mb.urls = [discogs_url(d)]
-        mb.type = release_type(d)
-        mb.comment = release_disambiguation(d['formats'])
-        mb.status = discogs_release_status(d['formats'])
-        mb.edit_note = self.edit_note(d['id'])
-        mb.events = discogs_release_events(d)
-        mb.mediums = discogs_tracklist(discogs_build_mediums(d['formats']), mb.artist_credit, d['tracklist'])
-        mb.labels = build_labels(d['labels'])
-        return mb
+        album_artist = discogs_build_artists(d['artists'])
+        return MBRelease(
+            name=d['title'],
+            artist_credit=album_artist,
+            release_group=discogs_master_release(d),
+            barcode = barcode(d),
+            urls = [discogs_url(d)],
+            type = release_type(d),
+            comment = release_disambiguation(d['formats']),
+            status = discogs_release_status(d['formats']),
+            edit_note = self.edit_note(d['id']),
+            events = discogs_release_events(d),
+            mediums = discogs_tracklist(discogs_build_mediums(d['formats']), album_artist, d['tracklist']),
+            labels = build_labels(d['labels'])
+        ) 
 
     def run_lookup(self, mb_releases: list[MBRelease] | MBRelease):
         if self.lookup:
