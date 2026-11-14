@@ -10,6 +10,7 @@ from discobrain.release_converter import (
 )
 from discobrain.release_converter.converter import (
     build_label,
+    discogs_append_extra_artists,
     discogs_build_artist,
     discogs_build_artists,
     discogs_build_mediums,
@@ -22,7 +23,7 @@ from discobrain.release_converter.discogs import (
     DiscogsLabel,
     DiscogsRelease,
     DiscogsReleaseArtist,
-    DiscogsTrack
+    DiscogsTrack,
 )
 from discobrain.release_converter.musicbrainz import (
     MBURL,
@@ -84,6 +85,29 @@ def test_release_disambiguation(given: list[DiscogsFormat], expected: str):
     assert release_disambiguation(given) == expected
 
 @pytest.mark.parametrize("given,expected", [
+    pytest.param(
+        [
+            {
+            "name": "File",
+            "descriptions": "MP3",
+            "qty": 37
+            },
+            {
+             "name": "File",
+             "descriptions": "WAV",
+             "qty": 2
+            }
+        ],
+        [
+            MBMedium(format="Digital Media")
+        ],
+        id="Digital Media is always 1 medium"
+    )
+])
+def test_discogs_build_medium(given: list[DiscogsFormat], expected: list[MBMedium]):
+    assert discogs_build_mediums(given) == expected
+
+@pytest.mark.parametrize("given,expected", [
     (
         load_json(765433),
         [MBMedium(
@@ -131,7 +155,7 @@ def test_release_disambiguation(given: list[DiscogsFormat], expected: str):
         [
             MBMedium(
                 format='12" Vinyl',
-                name="This Side (TW12757) / Other Side (TW12758)",
+                name=None,
                 track=[
                     MBTrack(
                         name="Let Me Be Your Underwear (Superstar mix)",
@@ -434,6 +458,47 @@ def test_discogs_strip_disambiguation(given: str, expected: str):
 ])
 def test_discogs_build_artist(given: DiscogsReleaseArtist, expected: MBName):
     assert discogs_build_artist(given) == expected
+
+@pytest.mark.parametrize("given_artist,given_extra,expected", [
+    pytest.param(
+        MBArtistCredit(
+            names=[
+                MBName(
+                    mbid="1",
+                    name="Nick The Kid", join_phrase=" & "),
+                MBName(
+                    mbid="2",
+                    name="Kitchen Disco", join_phrase=" feat. "),
+                MBName(
+                    mbid="https://www.discogs.com/artist/3",
+                    name="Anna McDonalds"
+                )
+            ]
+        ),
+        [{
+            "id": 3,
+            "name": "Anna McDonalds",
+            "role": "Featuring"
+        }],
+        MBArtistCredit(
+            names=[
+                MBName(
+                    mbid="1",
+                    name="Nick The Kid", join_phrase=" & "),
+                MBName(
+                    mbid="2",
+                    name="Kitchen Disco", join_phrase=" feat. "),
+                MBName(
+                    mbid="https://www.discogs.com/artist/3",
+                    name="Anna McDonalds"
+                )
+            ]
+        ),
+        id="Duplicate featured artists"
+    ) 
+])
+def test_discogs_append_extra_artists(given_artist: MBArtistCredit, given_extra: list[DiscogsReleaseArtist], expected: MBArtistCredit):
+    assert expected == discogs_append_extra_artists(given_artist, given_extra)
 
 @pytest.mark.parametrize("given,expected", [
     pytest.param(

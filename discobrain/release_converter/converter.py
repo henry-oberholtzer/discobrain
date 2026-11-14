@@ -162,7 +162,7 @@ def discogs_build_mediums(format: list[DiscogsFormat]) -> list[MBMedium]:
         # Add as many of these as listed
         if medium.format != "Digital Media":
             mediums.extend([deepcopy(medium) for i in range(qty)])
-        else:
+        elif len(mediums) and mediums[-1].format != "Digital Media" or not len(mediums):
             mediums.append(medium)
     return mediums
 
@@ -207,8 +207,11 @@ def discogs_filter_extra_artists(extra_artists: list[DiscogsReleaseArtist]) -> l
         return any(artist['role'].lower() in artist_type.lower() for artist_type in EXTRA_ARTIST_TYPES)
     return list(filter(is_extra_artist, extra_artists))
 
-def discogs_append_extra_artists(artist_credit: MBArtistCredit, extra_artists: list[DiscogsReleaseArtist]):
+def discogs_append_extra_artists(artist_credit: MBArtistCredit, extra_artists: list[DiscogsReleaseArtist]) -> MBArtistCredit:
     extra = discogs_build_artists(discogs_filter_extra_artists(extra_artists))
+    # Gate on duplicate artist IDs
+    current_artist_ids = {artist.mbid for artist in artist_credit.names}
+    extra.names = [e for e in extra.names if not e.mbid in current_artist_ids]
     if total_featuring := len(extra.names):
         artist_credit.names[-1].join_phrase = make_join(MUSICBRAINZ_FEATURING_JOIN)
         # Now add the joins.
@@ -219,6 +222,7 @@ def discogs_append_extra_artists(artist_credit: MBArtistCredit, extra_artists: l
         if len(extra.names) >= 3:
             extra.names[-2].join_phrase = make_join('&')
         artist_credit.names.extend(extra.names)
+    return artist_credit
 
 def discogs_append_subtracks(mb_track: MBTrack, subtracks: list[DiscogsTrack] | None):
     if not subtracks:
@@ -258,17 +262,28 @@ def change_side_and_medium(format: str | None, current_side: int, current_medium
         current_medium += 1
     return current_side, current_medium
 
+
 def discogs_tracklist(mediums: list[MBMedium], album_artist: MBArtistCredit, tracklist: list[DiscogsTrack]) -> list[MBMedium]:
+    total_mediums = len(mediums)
     current_side = 0
     current_medium = 0
     current_index = 0
     for idx, track in enumerate(tracklist):
+
+        additional_mediums = current_medium < total_mediums - 1
         med = mediums[current_medium]
         if track.get("type_") == "heading":
+            # Skip if there is only one medium
+            # Single discs don't get disc names on MB
+            if total_mediums == 1:
+                continue
             title = track['title'].strip()
-            if med.name and not (current_medium < len(mediums) -1):
+            if med.name and not additional_mediums:
                 med.name = make_join(MUSICBRAINZ_SUBTRACK_SEPARATOR).join([med.name, title])
-            elif len(med.track) and idx < len(tracklist) - 1 and track_is_on_new_medium(med.track[-1].number, tracklist[idx + 1].get('position')):
+            elif (len(med.track)
+                and additional_mediums
+                and idx < len(tracklist) - 1 
+                and track_is_on_new_medium(med.track[-1].number, tracklist[idx + 1].get('position'))):
                 mediums[current_medium + 1].name = title
             # If there was a previous track, and there is a next track
             # and the track after this one looks like it's on the next medium
@@ -284,7 +299,7 @@ def discogs_tracklist(mediums: list[MBMedium], album_artist: MBArtistCredit, tra
 
         # Check if the medium should be changed
         # The current medium must have a track to be eligible to change and there must be more mediums we can change to.
-        if current_index != 0 and current_medium < len(mediums) - 1 and track_is_on_new_medium(med.track[-1].number, mb_track.number):
+        if current_index != 0 and additional_mediums and track_is_on_new_medium(med.track[-1].number, mb_track.number):
             current_side, current_medium = change_side_and_medium(med.format, current_side, current_medium)
         # If the track provides artists, or the album artist should be re-used
         if track_artists := track.get('artists'):
